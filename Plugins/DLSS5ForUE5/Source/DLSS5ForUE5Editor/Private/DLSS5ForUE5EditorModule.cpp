@@ -48,6 +48,7 @@ namespace
         {
             Settings->PassCount = NewCount;
             Settings->ApplyToCVars();
+            Settings->SaveUserSettings();
             Settings->RefreshDiagnostics();
         }
     }
@@ -237,7 +238,7 @@ TSharedRef<SDockTab> FDLSS5ForUE5EditorModule::SpawnPluginTab(const FSpawnTabArg
                     .Padding(0.0f, 2.0f, 0.0f, 0.0f)
                     [
                         SNew(STextBlock)
-                        .Text(LOCTEXT("Subtitle", "Neural Rendering controls, 3D scene guides, temporal settings, multi-pass processing, and diagnostics."))
+                        .Text(LOCTEXT("Subtitle", "Changes are saved automatically for this project and restored next time you open the editor."))
                     ]
                 ]
                 + SHorizontalBox::Slot()
@@ -434,6 +435,7 @@ FReply FDLSS5ForUE5EditorModule::EnterSafeMode()
         Settings->bFeedSceneGuides = false;
         Settings->bUseMotionVectors = false;
         Settings->ApplyToCVars();
+        Settings->SaveUserSettings();
         Settings->RefreshDiagnostics();
     }
 

@@ -1,10 +1,21 @@
 #include "DLSS5NRCVars.h"
+#include "CoreMinimal.h"
 #include "HAL/IConsoleManager.h"
 
 static TAutoConsoleVariable<int32> CVarDLSS5NREnable(
     TEXT("r.DLSS5.Enable"), 0,
     TEXT("Enable experimental DLSS Neural Rendering post-pass. 0=Off 1=On"),
     ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarWatermark(
+    TEXT("r.DLSS5.Watermark"), 0,
+    TEXT("Burn DLSS5 ON/OFF into the rendered image. ON means at least one native NR pass succeeded for this view/sample."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<int32> CVarWatermarkCorner(
+    TEXT("r.DLSS5.Watermark.Corner"), 3,
+    TEXT("Watermark corner: 0=top left, 1=top right, 2=bottom left, 3=bottom right."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarWatermarkScale(
+    TEXT("r.DLSS5.Watermark.Scale"), 1.0f,
+    TEXT("Watermark size relative to image height. Clamped to 0.5..4."), ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarDLSS5NRPreset(
     TEXT("r.DLSS5.Preset"), 1,
@@ -98,6 +109,9 @@ namespace DLSS5NR
     int32 GetHighlightPreserve() { return CVarHighlight.GetValueOnRenderThread(); }
     float GetHighlightStart() { return CVarHighlightStart.GetValueOnRenderThread(); }
     float GetHighlightEnd() { return CVarHighlightEnd.GetValueOnRenderThread(); }
+    int32 GetWatermark() { return CVarWatermark.GetValueOnRenderThread(); }
+    int32 GetWatermarkCorner() { return FMath::Clamp(CVarWatermarkCorner.GetValueOnRenderThread(), 0, 3); }
+    float GetWatermarkScale() { return FMath::Clamp(CVarWatermarkScale.GetValueOnRenderThread(), 0.5f, 4.0f); }
     int32 GetEnable() { return CVarDLSS5NREnable.GetValueOnRenderThread(); }
     int32 GetPreset() { return CVarDLSS5NRPreset.GetValueOnRenderThread(); }
     int32 GetPassCount() { return CVarDLSS5NRPassCount.GetValueOnRenderThread(); }

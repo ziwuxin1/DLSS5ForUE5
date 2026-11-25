@@ -4,6 +4,8 @@
 #include "DLSS5NRCVars.h"
 #include "DLSS5NRMotionVectorPass.h"
 #include "DLSS5NRRuntime.h"
+#include "DLSS5NRWatermark.h"
+#include "HighResScreenshot.h"
 
 #include "RenderGraphBuilder.h"
 #include "RenderGraphResources.h"
@@ -48,6 +50,8 @@ namespace
         RDG_TEXTURE_ACCESS(InputDepth, ERHIAccess::SRVCompute)
         RDG_TEXTURE_ACCESS(InputMotion, ERHIAccess::SRVCompute)
         RDG_TEXTURE_ACCESS(OutputColor, ERHIAccess::UAVCompute)
+        RDG_TEXTURE_ACCESS(EvaluationStatus, ERHIAccess::CopyDest)
+        RDG_TEXTURE_ACCESS(SuccessValue, ERHIAccess::CopySrc)
     END_SHADER_PARAMETER_STRUCT()
 
     FIntRect ClampRectToExtent(const FIntRect& Rect, const FIntPoint& Extent)
@@ -81,7 +85,7 @@ namespace
 
     bool IsSupportedNRView(const FSceneView& View)
     {
-        if (!View.bIsViewInfo || !View.State || !View.Family || !View.Family->Scene ||
+        if (!View.bIsViewInfo || (!View.State && !GIsHighResScreenshot) || !View.Family || !View.Family->Scene ||
             View.bIsSceneCapture || View.bIsReflectionCapture || View.bIsPlanarReflection ||
             !View.IsPerspectiveProjection() || View.Family->EngineShowFlags.HitProxies)
         {
@@ -127,7 +131,7 @@ void FDLSS5NRViewExtension::SubscribeToPostProcessingPass(
     {
         // If NR is disabled for one or more frames, do not reuse stale history when it comes back.
         HistoryByView.Reset();
-        return;
+        if (DLSS5NR::GetWatermark() == 0) return;
     }
 
     // Tonemap remains the v0.4 insertion point: temporal upscaling / DLSS has already produced
@@ -147,13 +151,36 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
 {
     const FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(
         GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
-    if (!SceneColor.IsValid() || DLSS5NR::GetEnable() == 0 || !IsSupportedNRView(View))
+    if (!SceneColor.IsValid()) return SceneColor;
+
+    // Every path, including OFF and failed initialization, must honor UE's last-pass target.
+    // HighResShot and MRQ render to off-screen targets rather than the Slate back buffer.
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 6
+    const FScreenPassViewInfo ViewInfo(View.GetFeatureLevel());
+#else
+    const FScreenPassViewInfo ViewInfo(View);
+#endif
+    const bool bSupportedView = IsSupportedNRView(View);
+    const bool bWatermark = bSupportedView && DLSS5NR::GetWatermark() != 0;
+    FRDGTextureRef EvaluationStatus = bWatermark ? CreateDLSS5NRStatusTexture(GraphBuilder, 0) : nullptr;
+    const auto FinishOutput = [&](FScreenPassTexture Color)
     {
-        return SceneColor;
-    }
+        if (bWatermark)
+        {
+            Color = AddDLSS5NRWatermarkPass(GraphBuilder, View, Color, EvaluationStatus,
+                DLSS5NR::GetWatermarkCorner(), DLSS5NR::GetWatermarkScale());
+        }
+        if (Inputs.OverrideOutput.IsValid())
+        {
+            AddDrawTexturePass(GraphBuilder, ViewInfo, Color, Inputs.OverrideOutput);
+            return FScreenPassTexture(Inputs.OverrideOutput);
+        }
+        return Color;
+    };
+    if (DLSS5NR::GetEnable() == 0 || !bSupportedView) return FinishOutput(SceneColor);
 
 #if !DLSS5NR_WITH_D3D12
-    return SceneColor;
+    return FinishOutput(SceneColor);
 #else
     if (!IsRHID3D12())
     {
@@ -163,13 +190,13 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
             UE_LOG(LogDLSS5, Warning, TEXT("DLSS5 is enabled but the active RHI is not D3D12. Pass-through mode is active."));
             bLoggedWrongRHI = true;
         }
-        return SceneColor;
+        return FinishOutput(SceneColor);
     }
 
     const FIntRect ColorRect = SceneColor.ViewRect;
     if (ColorRect.Width() <= 0 || ColorRect.Height() <= 0)
     {
-        return SceneColor;
+        return FinishOutput(SceneColor);
     }
 
     // The scene guide buffers belong to the primary render view. With DLSS/TSR active this may
@@ -177,7 +204,7 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
     const FIntRect RenderRect = static_cast<const FViewInfo&>(View).ViewRect;
     if (RenderRect.Width() <= 0 || RenderRect.Height() <= 0)
     {
-        return SceneColor;
+        return FinishOutput(SceneColor);
     }
 
     FRDGTextureRef SceneDepth = nullptr;
@@ -249,12 +276,22 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
         if (FrameNumber > It.Value().LastFrame + 120) It.RemoveCurrent();
     }
     const FViewHistoryState* Previous = HistoryByView.Find(ViewKey);
+    const bool bCapture = GIsHighResScreenshot || !View.State;
 
     // A first evaluation always starts a new NR history, independent of the automatic-reset toggle.
     if (!Previous || !Previous->bValid || FrameNumber > Previous->LastFrame + 1)
     {
         bReset = true;
         ResetReason = TEXT("first NR frame");
+    }
+
+    // A still capture must never consume the interactive viewport's temporal history.
+    // The resize back to the viewport also resets even when AutoResetHistory is disabled.
+    if (bCapture || (Previous && (Previous->bCapture != bCapture ||
+        Previous->ColorRect != ColorRect || Previous->RenderRect != RenderRect)))
+    {
+        bReset = true;
+        ResetReason = bCapture ? TEXT("high-resolution still capture") : TEXT("capture/viewport size changed");
     }
 
     if (View.bCameraCut)
@@ -301,6 +338,7 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
 
     FViewHistoryState& CurrentHistory = HistoryByView.FindOrAdd(ViewKey);
     CurrentHistory.bValid = true;
+    CurrentHistory.bCapture = bCapture;
     CurrentHistory.LastFrame = FrameNumber;
     CurrentHistory.ColorRect = ColorRect;
     CurrentHistory.RenderRect = RenderRect;
@@ -309,12 +347,6 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
     CurrentHistory.bDepthAvailable = bUseDepth;
     CurrentHistory.bMotionAvailable = bUseMotion;
     CurrentHistory.PreExposure = PreExposure;
-
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 6
-    const FScreenPassViewInfo ViewInfo(View.GetFeatureLevel());
-#else
-    const FScreenPassViewInfo ViewInfo(View);
-#endif
 
     // NR input/output remain FP16 UAV-capable proxies. Output is prefilled so every failure mode
     // remains a visual pass-through rather than turning the viewport black.
@@ -378,6 +410,7 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
     FRDGTextureRef CurrentPassInput = NRInput;
     FRDGTextureRef FinalNROutput = NRInput;
 
+    FRDGTextureRef SuccessValue = bWatermark ? CreateDLSS5NRStatusTexture(GraphBuilder, 1) : nullptr;
     for (int32 PassIndex = 0; PassIndex < Config.PassCount; ++PassIndex)
     {
         FRDGTextureRef PassOutput = GraphBuilder.CreateTexture(ProxyDesc, TEXT("DLSS5NR.PassOutputFP16"));
@@ -391,6 +424,8 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
         PassParameters->InputDepth = bUseDepth ? ResolvedDepth : nullptr;
         PassParameters->InputMotion = bUseMotion ? DenseMotion : nullptr;
         PassParameters->OutputColor = PassOutput;
+        PassParameters->EvaluationStatus = EvaluationStatus;
+        PassParameters->SuccessValue = SuccessValue;
 
         FRDGTextureRef ThisPassInput = CurrentPassInput;
         FRDGTextureRef ThisPassOutput = PassOutput;
@@ -398,9 +433,11 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
         GraphBuilder.AddPass(
             RDG_EVENT_NAME("DLSS5NR Native NGX Feature 18 Pass %d/%d", PassIndex + 1, Config.PassCount),
             PassParameters,
-            ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-            [ThisPassInput, ThisPassOutput, ResolvedDepth, DenseMotion, ColorRect, DepthRect, MotionRect, bUseDepth, bUseMotion, Config, PassIndex, ViewKey, FrameNumber](FRHIComputeCommandList& RHICmdList)
+            ERDGPassFlags::Compute | ERDGPassFlags::Copy | ERDGPassFlags::NeverCull,
+            [ThisPassInput, ThisPassOutput, ResolvedDepth, DenseMotion, ColorRect, DepthRect, MotionRect, bUseDepth, bUseMotion, Config, PassIndex, ViewKey, FrameNumber, bCapture, EvaluationStatus, SuccessValue](FRHIComputeCommandList& RHICmdList)
             {
+                FRHITexture* StatusRHI = EvaluationStatus ? EvaluationStatus->GetRHI() : nullptr;
+                FRHITexture* SuccessRHI = SuccessValue ? SuccessValue->GetRHI() : nullptr;
                 FRHITexture* InputRHI = ThisPassInput->GetRHI();
                 FRHITexture* OutputRHI = ThisPassOutput->GetRHI();
                 FRHITexture* DepthRHI = bUseDepth && ResolvedDepth ? ResolvedDepth->GetRHI() : nullptr;
@@ -413,7 +450,7 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
                 const FGPUFenceRHIRef CompletionFence = RHICreateGPUFence(TEXT("DLSS5NR.EvaluationComplete"));
                 RHICmdList.EnqueueLambda(
                     TEXT("DLSS5NR.NGXEvaluate"),
-                    [InputRHI, OutputRHI, DepthRHI, MotionRHI, ColorRect, DepthRect, MotionRect, Config, PassIndex, ViewKey, FrameNumber, CompletionFence](FRHICommandListBase& ExecutingCmdList)
+                    [InputRHI, OutputRHI, DepthRHI, MotionRHI, ColorRect, DepthRect, MotionRect, Config, PassIndex, ViewKey, FrameNumber, CompletionFence, bCapture, StatusRHI, SuccessRHI](FRHICommandListBase& ExecutingCmdList)
                     {
                         ID3D12DynamicRHI* D3D12RHI = GetID3D12DynamicRHI();
                         if (!D3D12RHI)
@@ -429,7 +466,7 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
 #if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 6)
                         // Native NGX dispatches bypass UE's normal shader binding path.
                         // Match NVIDIA's UE integration: register residency and flush RDG barriers.
-                        for (FRHITexture* Texture : {InputRHI, OutputRHI, DepthRHI, MotionRHI})
+                        for (FRHITexture* Texture : {InputRHI, OutputRHI, DepthRHI, MotionRHI, StatusRHI, SuccessRHI})
                         {
                             if (Texture) D3D12RHI->RHIUpdateResourceResidency(ExecutingCmdList, DeviceIndex, Texture);
                         }
@@ -458,7 +495,7 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
                         }
 
                         FDLSS5NREvaluateDesc Desc;
-                        Desc.HistoryKey = (static_cast<uint64>(ViewKey) << 32) | static_cast<uint32>(PassIndex);
+                        Desc.HistoryKey = (static_cast<uint64>(ViewKey) << 32) | (bCapture ? 0x100u : 0u) | static_cast<uint32>(PassIndex);
                         Desc.FrameNumber = FrameNumber;
                         Desc.CompletionFence = CompletionFence;
                         Desc.CommandList = NativeCmd;
@@ -486,7 +523,19 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
                         Desc.JitterPixels = Config.JitterPixels;
                         Desc.PreExposure = Config.PreExposure;
 
-                        Runtime.Evaluate(Desc);
+                        const bool bEvaluated = Runtime.Evaluate(Desc);
+                        if (bEvaluated && StatusRHI && SuccessRHI)
+                        {
+                            // Keep the result on the GPU: no readback, stale global counters, or
+                            // render/RHI-thread race when deciding this image's ON/OFF label.
+                            D3D12_TEXTURE_COPY_LOCATION Destination = {};
+                            Destination.pResource = D3D12RHI->RHIGetResource(StatusRHI);
+                            Destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+                            D3D12_TEXTURE_COPY_LOCATION Source = {};
+                            Source.pResource = D3D12RHI->RHIGetResource(SuccessRHI);
+                            Source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+                            NativeCmd->CopyTextureRegion(&Destination, 0, 0, 0, &Source, nullptr);
+                        }
 
                         // NGX records D3D12 work directly. Restore UE descriptor/state caches
                         // before the next RDG pass, including the next sequential NR pass.
@@ -502,20 +551,13 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
         FinalNROutput = PassOutput;
     }
 
-    const IConsoleVariable* AlphaCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
-    const bool bPreserveAlpha = AlphaCVar && AlphaCVar->GetInt() != 0;
+    // NGX owns RGB only. Preserve UE's alpha exactly; MRQ's surface reader
+    // performs its own transmittance-to-opacity conversion after this pass.
     const bool bHighlight = DLSS5NR::GetHighlightPreserve() != 0 && DLSS5NR::GetHighlightEnd() > DLSS5NR::GetHighlightStart();
-    if (bHighlight || bPreserveAlpha)
-        FinalNROutput = AddDLSS5NRHighlightPass(GraphBuilder, View, SceneColor.Texture, FinalNROutput,
-            ColorRect, DLSS5NR::GetHighlightStart(), DLSS5NR::GetHighlightEnd(), bHighlight, bPreserveAlpha);
+    FinalNROutput = AddDLSS5NRHighlightPass(GraphBuilder, View, SceneColor.Texture, FinalNROutput,
+            ColorRect, DLSS5NR::GetHighlightStart(), DLSS5NR::GetHighlightEnd(), bHighlight, true);
     const FScreenPassTexture NROutputScreen(FinalNROutput, ColorRect);
 
-    if (Inputs.OverrideOutput.IsValid())
-    {
-        AddDrawTexturePass(GraphBuilder, ViewInfo, NROutputScreen, Inputs.OverrideOutput);
-        return Inputs.OverrideOutput;
-    }
-
-    return NROutputScreen;
+    return FinishOutput(NROutputScreen);
 #endif
 }

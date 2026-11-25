@@ -8,6 +8,9 @@ namespace DLSS5NR
     float GetHighlightStart();
     float GetHighlightEnd();
     extern int32 GetEnable();
+    int32 GetWatermark();
+    int32 GetWatermarkCorner();
+    float GetWatermarkScale();
     extern int32 GetPreset();
     extern int32 GetPassCount();
     extern float GetIntensity();

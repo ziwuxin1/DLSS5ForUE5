@@ -29,7 +29,10 @@ public:
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
-    void ApplyToCVars() const;
+    // Startup restores saved values below explicit launch/console CVar priorities.
+    void ApplyToCVars(bool bStartup = false) const;
+    void LoadUserSettings();
+    void SaveUserSettings();
     void LoadFromCVars();
     void RefreshDiagnostics();
 
@@ -46,6 +49,16 @@ public:
     // Edited by the dedicated Slate slider in the DLSS 5 window rather than the generic DetailsView.
     UPROPERTY(Config)
     int32 PassCount = 1;
+
+    // Composited into scene color, so screenshots and MRQ image sequences retain it.
+    UPROPERTY(EditAnywhere, Config, Category = "Capture", meta = (DisplayName = "Show DLSS5 ON / OFF Watermark"))
+    bool bShowWatermark = false;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Capture", meta = (EditCondition = "bShowWatermark", ClampMin = "0", ClampMax = "3", ToolTip = "0: top left, 1: top right, 2: bottom left, 3: bottom right"))
+    int32 WatermarkCorner = 3;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Capture", meta = (EditCondition = "bShowWatermark", ClampMin = "0.5", ClampMax = "4.0"))
+    float WatermarkScale = 1.0f;
 
     // ---------------- Neural Controls ----------------
     UPROPERTY(EditAnywhere, Config, Category = "Neural Controls", meta = (ClampMin = "0.0", ClampMax = "2.0", UIMin = "0.0", UIMax = "2.0"))

@@ -50,3 +50,15 @@ r.DLSS5.PassCount 4
 ## Optional highlight preservation
 
 `r.DLSS5.HighlightPreserve` toggles restoration of bright highlights over the Neural Rendering output (`0` off, `1` on). The `HighlightPreserveStart` and `HighlightPreserveEnd` controls set the blend thresholds in the **current post-tonemap color-buffer units**, not absolute scene luminance or HDR nits. The end threshold must exceed the start threshold for recovery to apply.
+
+## Capture watermark (UE 5.8.4 fork)
+
+| CVar | Default | Meaning |
+| --- | --- | --- |
+| `r.DLSS5.Watermark` | 0 | Burn per-sample native NR ON/OFF status into the image. |
+| `r.DLSS5.Watermark.Corner` | 3 | 0 top left, 1 top right, 2 bottom left, 3 bottom right. |
+| `r.DLSS5.Watermark.Scale` | 1 | Size relative to image height, clamped to 0.5–4. |
+
+See [UE 5.8.4 capture](UE584_CAPTURE.md) for HighResShot and 4K MRQ sequence setup.
+
+`DLSS5.SaveSettings` saves current control CVars for this project/user. UI changes save automatically. MRQ job overrides are not automatically persisted.

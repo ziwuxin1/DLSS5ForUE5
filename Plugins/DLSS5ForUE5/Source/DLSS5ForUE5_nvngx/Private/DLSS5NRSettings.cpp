@@ -2,24 +2,27 @@
 
 #include "DLSS5NRRuntime.h"
 #include "HAL/IConsoleManager.h"
+#include "Misc/ConfigCacheIni.h"
 
 #define LOCTEXT_NAMESPACE "DLSS5NRSettings"
 
 namespace
 {
-    void SetIntCVar(const TCHAR* Name, int32 Value)
+    void SetIntCVar(const TCHAR* Name, int32 Value, EConsoleVariableFlags Priority)
     {
         if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(Name))
         {
-            CVar->Set(Value, ECVF_SetByConsole);
+            if (uint32(CVar->GetFlags() & ECVF_SetByMask) <= uint32(Priority))
+                CVar->Set(Value, Priority);
         }
     }
 
-    void SetFloatCVar(const TCHAR* Name, float Value)
+    void SetFloatCVar(const TCHAR* Name, float Value, EConsoleVariableFlags Priority)
     {
         if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(Name))
         {
-            CVar->Set(Value, ECVF_SetByConsole);
+            if (uint32(CVar->GetFlags() & ECVF_SetByMask) <= uint32(Priority))
+                CVar->Set(Value, Priority);
         }
     }
 
@@ -42,6 +45,9 @@ UDLSS5NRSettings::UDLSS5NRSettings()
 
 void UDLSS5NRSettings::LoadFromCVars()
 {
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Watermark"))) bShowWatermark = V->GetInt() != 0;
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Watermark.Corner"))) WatermarkCorner = V->GetInt();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Watermark.Scale"))) WatermarkScale = V->GetFloat();
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Enable"))) bEnableNeuralRendering = V->GetInt() != 0;
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Style"))) Style = static_cast<EDLSS5NRStyle>(FMath::Clamp(V->GetInt(), 0, 1));
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Preset"))) Preset = V->GetInt();
@@ -64,28 +70,48 @@ void UDLSS5NRSettings::LoadFromCVars()
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Debug"))) bVerboseDiagnostics = V->GetInt() != 0;
 }
 
-void UDLSS5NRSettings::ApplyToCVars() const
+void UDLSS5NRSettings::ApplyToCVars(bool bStartup) const
 {
-    SetIntCVar(TEXT("r.DLSS5.Enable"), bEnableNeuralRendering ? 1 : 0);
-    SetIntCVar(TEXT("r.DLSS5.Style"), static_cast<int32>(Style));
-    SetIntCVar(TEXT("r.DLSS5.Preset"), FMath::Clamp(Preset, 0, 3));
-    SetIntCVar(TEXT("r.DLSS5.PassCount"), FMath::Clamp(PassCount, 1, 4));
-    SetFloatCVar(TEXT("r.DLSS5.Intensity"), Intensity);
-    SetFloatCVar(TEXT("r.DLSS5.LocalTone"), LocalTone);
-    SetFloatCVar(TEXT("r.DLSS5.LocalStructure"), LocalStructure);
-    SetFloatCVar(TEXT("r.DLSS5.SkinStructure"), SkinStructure);
-    SetIntCVar(TEXT("r.DLSS5.AutoMask"), bAutoMask ? 1 : 0);
-    SetIntCVar(TEXT("r.DLSS5.UICorrection"), bUICorrection ? 1 : 0);
-    SetIntCVar(TEXT("r.DLSS5.EnableSceneGuides"), bEnableSceneGuides ? 1 : 0);
-    SetIntCVar(TEXT("r.DLSS5.FeedSceneGuides"), bFeedSceneGuides ? 1 : 0);
-    SetIntCVar(TEXT("r.DLSS5.UseDepth"), bUseDepth ? 1 : 0);
-    SetIntCVar(TEXT("r.DLSS5.UseMotionVectors"), bUseMotionVectors ? 1 : 0);
-    SetIntCVar(TEXT("r.DLSS5.AutoResetHistory"), bAutoResetHistory ? 1 : 0);
-    SetIntCVar(TEXT("r.DLSS5.DepthInverted"), bDepthInverted ? 1 : 0);
-    SetFloatCVar(TEXT("r.DLSS5.MVecScaleX"), MotionScaleXMultiplier);
-    SetFloatCVar(TEXT("r.DLSS5.MVecScaleY"), MotionScaleYMultiplier);
-    SetFloatCVar(TEXT("r.DLSS5.ExposureResetRatio"), ExposureResetRatio);
-    SetIntCVar(TEXT("r.DLSS5.Debug"), bVerboseDiagnostics ? 1 : 0);
+    const EConsoleVariableFlags Priority = bStartup ? ECVF_SetByProjectSetting : ECVF_SetByConsole;
+    SetIntCVar(TEXT("r.DLSS5.Watermark"), bShowWatermark ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.Watermark.Corner"), FMath::Clamp(WatermarkCorner, 0, 3), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.Watermark.Scale"), FMath::Clamp(WatermarkScale, 0.5f, 4.0f), Priority);
+    SetIntCVar(TEXT("r.DLSS5.Enable"), bEnableNeuralRendering ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.Style"), static_cast<int32>(Style), Priority);
+    SetIntCVar(TEXT("r.DLSS5.Preset"), FMath::Clamp(Preset, 0, 3), Priority);
+    SetIntCVar(TEXT("r.DLSS5.PassCount"), FMath::Clamp(PassCount, 1, 4), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.Intensity"), Intensity, Priority);
+    SetFloatCVar(TEXT("r.DLSS5.LocalTone"), LocalTone, Priority);
+    SetFloatCVar(TEXT("r.DLSS5.LocalStructure"), LocalStructure, Priority);
+    SetFloatCVar(TEXT("r.DLSS5.SkinStructure"), SkinStructure, Priority);
+    SetIntCVar(TEXT("r.DLSS5.AutoMask"), bAutoMask ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.UICorrection"), bUICorrection ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.EnableSceneGuides"), bEnableSceneGuides ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.FeedSceneGuides"), bFeedSceneGuides ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.UseDepth"), bUseDepth ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.UseMotionVectors"), bUseMotionVectors ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.AutoResetHistory"), bAutoResetHistory ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.DepthInverted"), bDepthInverted ? 1 : 0, Priority);
+    SetFloatCVar(TEXT("r.DLSS5.MVecScaleX"), MotionScaleXMultiplier, Priority);
+    SetFloatCVar(TEXT("r.DLSS5.MVecScaleY"), MotionScaleYMultiplier, Priority);
+    SetFloatCVar(TEXT("r.DLSS5.ExposureResetRatio"), ExposureResetRatio, Priority);
+    SetIntCVar(TEXT("r.DLSS5.Debug"), bVerboseDiagnostics ? 1 : 0, Priority);
+}
+
+void UDLSS5NRSettings::LoadUserSettings()
+{
+#if WITH_EDITOR
+    // Overlay per-user choices on any defaults supplied by the project's Engine.ini.
+    // Saved config avoids checking out a shared DefaultEngine.ini in Perforce projects.
+    LoadConfig(GetClass(), *GEditorPerProjectIni);
+#endif
+}
+
+void UDLSS5NRSettings::SaveUserSettings()
+{
+#if WITH_EDITOR
+    SaveConfig(CPF_Config, *GEditorPerProjectIni);
+#endif
 }
 
 #if WITH_EDITOR
@@ -93,6 +119,7 @@ void UDLSS5NRSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 {
     Super::PostEditChangeProperty(PropertyChangedEvent);
     ApplyToCVars();
+    if (!(PropertyChangedEvent.ChangeType & EPropertyChangeType::Interactive)) SaveUserSettings();
 }
 #endif
 

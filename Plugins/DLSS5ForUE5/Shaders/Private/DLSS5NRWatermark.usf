@@ -1,0 +1,59 @@
+#include "/Engine/Public/Platform.ush"
+
+Texture2D<float4> InputColor;
+Texture2D<uint> EvaluationStatus;
+RWTexture2D<float4> OutputColor;
+int2 RectMin;
+int2 RectSize;
+int2 LabelOrigin;
+int PixelScale;
+uint CompositeInvertedAlpha;
+
+// Original 5x7 bitmap alphabet, five bits per row. No font asset or Slate dependency.
+uint GlyphRow(uint Glyph, uint Row)
+{
+    const uint Rows[56] = {
+        30,17,17,17,17,17,30, // D
+        16,16,16,16,16,16,31, // L
+        15,16,16,14, 1, 1,30, // S
+        31,16,16,30, 1, 1,30, // 5
+        14,17,17,17,17,17,14, // O
+        17,25,25,21,19,19,17, // N
+        31,16,16,30,16,16,16, // F
+         0, 0, 0, 0, 0, 0, 0  // space
+    };
+    return Rows[Glyph * 7 + Row];
+}
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 Id : SV_DispatchThreadID)
+{
+    if (any(Id.xy >= uint2(RectSize))) return;
+    const int2 Pixel = RectMin + int2(Id.xy);
+    float4 Color = InputColor.Load(int3(Pixel, 0));
+    const int2 Local = Pixel - LabelOrigin;
+    if (all(Local >= 0) && all(Local < int2(58, 11) * PixelScale))
+    {
+        const bool Enabled = EvaluationStatus.Load(int3(0, 0, 0)) != 0;
+        Color.rgb = lerp(Color.rgb, float3(0.015, 0.02, 0.025), 0.85);
+        // MRQ inverts UE's internal transmittance alpha after post processing.
+        // The visible label must contribute opacity even over a transparent sky.
+        Color.a = CompositeInvertedAlpha != 0 ? Color.a * 0.15 : 0.85 + Color.a * 0.15;
+        const int2 Text = Local / PixelScale - int2(2, 2);
+        if (all(Text >= 0) && Text.y < 7 && Text.x < 54)
+        {
+            const uint Letter = uint(Text.x) / 6;
+            const uint Column = uint(Text.x) % 6;
+            const uint OnGlyphs[9] = {0,1,2,2,3,7,4,5,7};
+            const uint OffGlyphs[9] = {0,1,2,2,3,7,4,6,6};
+            const uint Glyph = Enabled ? OnGlyphs[Letter] : OffGlyphs[Letter];
+            if (Column < 5 && (GlyphRow(Glyph, uint(Text.y)) & (1u << (4 - Column))) != 0)
+            {
+                Color.rgb = Letter < 6 ? float3(1, 1, 1) :
+                    (Enabled ? float3(0.35, 1, 0.3) : float3(1, 0.65, 0.3));
+                Color.a = CompositeInvertedAlpha != 0 ? 0 : 1;
+            }
+        }
+    }
+    OutputColor[Pixel] = Color;
+}
