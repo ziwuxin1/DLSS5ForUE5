@@ -39,3 +39,9 @@ UnrealEditor-Cmd.exe <Project.uproject> -d3d12 -RenderOffscreen -unattended -Exe
 For manual capture, follow [capture setup](UE584_CAPTURE.md), compare `HighResShot 3840x2160` with NR disabled/enabled, then render a short MRQ sequence using the included 4K preset. Inspect both the output images and `DLSS5.Status`; DLL loading alone is not inference proof.
 
 This validation does not establish production-scene quality, long-render stability, multi-GPU behavior, multi-sample ghosting, tiled MRQ, linear/OCIO EXR, Movie Render Graph, path tracing, packaged native NR, or runtime compatibility with other UE versions. Use Tile Count 1 and the default tone curve. The runtime does not infer meaningful depth/motion-guide quality from this scene-guide-disabled capture test.
+
+## Packaging correction (r2)
+
+The initial source-based validation did not test the final ZIP's added `EngineVersion` field. That field used the hotfix version `5.8.4`, while PluginManager compares against `FEngineVersion::CompatibleWith()` (`5.8.0` for this Epic build). This caused a prompt even though both module BuildIds were 55116800. The packaging script now derives the compatible baseline from the engine build and rejects mismatched module manifests. No rendering binaries changed in this correction.
+
+The corrected ZIP was extracted into a fresh project and launched with UE 5.8.4. The runtime settings class and MRQ setting class loaded, the process exited with code 0, and the log contained no plugin engine-version warning. This was a package-loading smoke test without the NVIDIA runtime; it does not add new native inference claims.

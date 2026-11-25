@@ -43,3 +43,9 @@ The repository includes `DLSS5.GPU.Watermark4K`, `DLSS5.MRQ.SettingLifecycle`, a
 Changes made in the plugin window, including the custom Pass Count slider, are automatically saved under the project's `Saved/Config/WindowsEditor/EditorPerProjectUserSettings.ini`. Shared `Config/DefaultEngine.ini` files do not need to be checked out in Perforce. The next editor launch restores these settings before rendering starts.
 
 Explicit console/startup overrides retain their priority. Crash recovery may still temporarily disable NR after an unclean NR-active session; that recovery does not erase saved settings. The UI Safe Mode button saves its safe choices, while the `DLSS5.SafeMode` console command remains session-only. To persist changes made through CVars, run `DLSS5.SaveSettings`.
+
+## Editor build packaging
+
+Use `python Scripts/package_editor_build.py --engine <UE_5.8> --output <build.zip>` after compiling the plugin. The script checks the compiled module BuildId against the selected engine and packages only the plugin modules, never the NVIDIA runtime.
+
+`EngineVersion` in the ZIP descriptor describes Unreal's compatibility baseline, not the hotfix version shown in About Unreal Editor. For Epic UE 5.8.4 this is `5.8.0`; the DLLs are still built and tested with 5.8.4. The original locally delivered ZIP incorrectly declared `5.8.4`, which triggered a false incompatibility prompt. The corrected r2 package uses the compatible baseline and retains the module BuildId checks.
