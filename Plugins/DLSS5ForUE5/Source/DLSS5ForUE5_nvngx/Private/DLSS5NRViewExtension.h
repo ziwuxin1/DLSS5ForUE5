@@ -32,10 +32,14 @@ public:
         FDLSS5NRPostProcessDelegateArray& InOutPassCallbacks,
         bool bIsPassEnabled) override;
 
+    virtual void PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& Family) override;
+    virtual void PostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& Family) override;
+
 private:
     struct FViewHistoryState
     {
         bool bValid = false;
+        bool bCapture = false;
         uint64 LastFrame = 0;
         FIntRect ColorRect;
         FIntRect RenderRect;
@@ -52,4 +56,15 @@ private:
         const FPostProcessMaterialInputs& Inputs);
 
     TMap<uint32, FViewHistoryState> HistoryByView;
+
+    struct FWatermarkView
+    {
+        const FSceneView* View = nullptr;
+        FRDGTextureRef Status = nullptr;
+        const FRDGBuilder* Graph = nullptr;
+        int32 Corner = 3;
+        float Scale = 1.0f;
+    };
+    // Render-thread only. Entries are consumed in the same family's RDG builder.
+    TMap<const FSceneViewFamily*, TArray<FWatermarkView>> PendingWatermarks;
 };

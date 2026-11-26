@@ -94,6 +94,19 @@ namespace
         TEXT("Print DLSS5 runtime/guide diagnostics and active CVars."),
         FConsoleCommandDelegate::CreateStatic(&PrintStatus));
 
+    FAutoConsoleCommand GDLSS5SaveSettingsCommand(
+        TEXT("DLSS5.SaveSettings"),
+        TEXT("Save the current DLSS5 controls for this project/user; restored on editor startup."),
+        FConsoleCommandDelegate::CreateLambda([]()
+        {
+            if (UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>())
+            {
+                Settings->LoadFromCVars();
+                Settings->SaveUserSettings();
+                UE_LOG(LogDLSS5, Display, TEXT("DLSS5 settings saved for this project/user."));
+            }
+        }));
+
     void EnterSafeModeFromConsole()
     {
         if (UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>())
@@ -160,6 +173,8 @@ void FDLSS5ForUE5Module::HandlePostEngineInit()
     UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>();
     if (Settings)
     {
+        Settings->LoadUserSettings();
+        Settings->ApplyToCVars(true);
         const bool bRecover = DLSS5NRRecovery::Begin(RecoveryMarker);
         if (bRecover)
         {

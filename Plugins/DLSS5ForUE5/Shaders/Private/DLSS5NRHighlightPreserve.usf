@@ -8,6 +8,9 @@ float PreserveStart;
 float PreserveEnd;
 uint EnableRecovery;
 uint PreserveAlpha;
+float EffectBlend;
+uint CompareEnabled;
+float CompareSplit;
 RWTexture2D<float4> RecoveredColor;
 
 [numthreads(8,8,1)]
@@ -19,5 +22,8 @@ void HighlightMainCS(uint3 Id : SV_DispatchThreadID)
     float4 NR = NeuralColor.Load(int3(Pixel,0));
     float Weight = EnableRecovery != 0 && PreserveEnd > PreserveStart
         ? smoothstep(PreserveStart,PreserveEnd,max(Source.r,max(Source.g,Source.b))) : 0;
-    RecoveredColor[Pixel] = float4(lerp(NR.rgb,Source.rgb,Weight),PreserveAlpha != 0 ? Source.a : NR.a);
+    float3 Enhanced = lerp(NR.rgb, Source.rgb, Weight);
+    float Blend = CompareEnabled != 0 && (float(Id.x) + 0.5) / float(RectSize.x) < CompareSplit
+        ? 0 : EffectBlend;
+    RecoveredColor[Pixel] = float4(lerp(Source.rgb, Enhanced, Blend), PreserveAlpha != 0 ? Source.a : NR.a);
 }

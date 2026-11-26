@@ -4,10 +4,24 @@
 
 namespace DLSS5NR
 {
+    float GetArtStructure();
+    float GetArtTone();
+    int32 GetDeveloperMasking();
+    int32 GetShowDeveloperMasks();
+    FVector4f GetMaskGroup(int32 Index);
+    float GetColorPreserve();
+    float GetTonePreserve();
+    float GetNeuralDetail();
+    float GetBlend();
+    int32 GetCompare();
+    float GetCompareSplit();
     int32 GetHighlightPreserve();
     float GetHighlightStart();
     float GetHighlightEnd();
     extern int32 GetEnable();
+    int32 GetWatermark();
+    int32 GetWatermarkCorner();
+    float GetWatermarkScale();
     extern int32 GetPreset();
     extern int32 GetPassCount();
     extern float GetIntensity();

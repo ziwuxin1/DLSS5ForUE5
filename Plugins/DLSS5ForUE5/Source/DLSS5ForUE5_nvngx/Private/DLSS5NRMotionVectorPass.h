@@ -30,4 +30,4 @@ FRDGTextureRef AddDLSS5NRMotionVectorResolvePass(
     const FIntPoint& OutputSize);
 
 FRDGTextureRef AddDLSS5NRHighlightPass(FRDGBuilder&,const FSceneView&,FRDGTextureRef,FRDGTextureRef,
-    const FIntRect&,float,float,bool,bool);
+    const FIntRect&,float,float,bool,bool,float Blend = 1.0f,bool bCompare = false,float Split = 0.5f);

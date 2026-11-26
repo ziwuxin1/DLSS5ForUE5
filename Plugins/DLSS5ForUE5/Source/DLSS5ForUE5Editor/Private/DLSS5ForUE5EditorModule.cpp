@@ -1,5 +1,4 @@
 #include "DLSS5ForUE5EditorModule.h"
-#include "DLSS5ForUE5Module.h"
 
 #include "DLSS5NRSettings.h"
 
@@ -9,25 +8,67 @@
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Docking/TabManager.h"
 #include "HAL/IConsoleManager.h"
-#include "HAL/PlatformProcess.h"
 #include "IDetailCustomization.h"
+#include "IDetailPropertyRow.h"
+#include "IPropertyUtilities.h"
 #include "IDetailsView.h"
+#include "Interfaces/IPluginManager.h"
 #include "PropertyEditorModule.h"
+#include "DesktopPlatformModule.h"
+#include "IDesktopPlatform.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Misc/Paths.h"
+#include "Misc/MessageDialog.h"
+#include "HAL/FileManager.h"
+#include "Styling/AppStyle.h"
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Layout/SBorder.h"
-#include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Editor.h"
+#include "Engine/Selection.h"
+#include "Components/PrimitiveComponent.h"
+#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "DLSS5ForUE5Editor"
 
 namespace
 {
     const FName DLSS5ForUE5TabName(TEXT("DLSS5ForUE5"));
-    const TCHAR* DLSS5BuildStamp = TEXT("2026-10-27");
+
+    void AssignSelectedToMaskGroup(int32 Group)
+    {
+        if (!GEditor || GEditor->GetSelectedActorCount() == 0) return;
+        UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>();
+        const int32 IDs[] = { Settings->MaskGroup1Stencil, Settings->MaskGroup2Stencil, Settings->MaskGroup3Stencil };
+        const FScopedTransaction Transaction(LOCTEXT("AssignMaskTransaction", "Assign DLSS5 Object Mask"));
+        for (FSelectionIterator It(*GEditor->GetSelectedActors()); It; ++It)
+        {
+            if (AActor* Actor = Cast<AActor>(*It))
+            {
+                Actor->Modify();
+                TInlineComponentArray<UPrimitiveComponent*> Components(Actor);
+                for (UPrimitiveComponent* Component : Components)
+                {
+                    // Explicit user action. UE undo restores any pre-existing stencil assignment.
+                    Component->Modify();
+                    Component->SetRenderCustomDepth(true);
+                    Component->SetCustomDepthStencilValue(FMath::Clamp(IDs[Group], 1, 255));
+                }
+            }
+        }
+        Settings->bDeveloperMasking = true;
+        if (Group == 0) Settings->bMaskGroup1Enabled = true;
+        else if (Group == 1) Settings->bMaskGroup2Enabled = true;
+        else Settings->bMaskGroup3Enabled = true;
+        Settings->ApplyToCVars();
+        Settings->SaveUserSettings();
+        GEditor->RedrawAllViewports();
+    }
 
     int32 GetPassCount()
     {
@@ -48,6 +89,7 @@ namespace
         {
             Settings->PassCount = NewCount;
             Settings->ApplyToCVars();
+            Settings->SaveUserSettings();
             Settings->RefreshDiagnostics();
         }
     }
@@ -62,9 +104,93 @@ namespace
 
         virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
         {
-            // Keep General at the top, then make Pass Count its own highly visible section
-            // before the normal Neural Controls category.
+            const TWeakPtr<IPropertyUtilities> Utilities = DetailBuilder.GetPropertyUtilities();
+            const auto MakeReset = [Utilities](FName PropertyName)
+            {
+                // Always show the familiar UE reset arrow, even when already at
+                // default. The regular CDO-based comparison cannot work here.
+                return FResetToDefaultOverride::Create(FSimpleDelegate::CreateLambda([Utilities, PropertyName]()
+                {
+                    UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>();
+                    if (Settings->ResetPropertyToDefault(PropertyName))
+                    {
+                        Settings->SaveUserSettings();
+                        if (const TSharedPtr<IPropertyUtilities> Pinned = Utilities.Pin()) Pinned->RequestRefresh();
+                    }
+                }));
+            };
+            const FName ResettableProperties[] = {
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, GlobalStructure),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, GlobalTone),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bDeveloperMasking),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bShowDeveloperMasks),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bMaskGroup1Enabled),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup1Stencil),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup1Structure),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup1Tone),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bMaskGroup2Enabled),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup2Stencil),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup2Structure),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup2Tone),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bMaskGroup3Enabled),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup3Stencil),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup3Structure),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup3Tone),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bEnableNeuralRendering),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Style),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Preset),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, EffectStrength),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Intensity),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, LocalTone),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bShowWatermark),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, WatermarkCorner),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, WatermarkScale),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, ColorPreserve),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, TonePreserve),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, NeuralDetail),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bCompare),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, SplitPosition)
+            };
+            for (FName PropertyName : ResettableProperties)
+            {
+                if (IDetailPropertyRow* Row = DetailBuilder.EditDefaultProperty(DetailBuilder.GetProperty(PropertyName)))
+                    Row->OverrideResetToDefault(MakeReset(PropertyName));
+            }
+            // Retain the requested Style, Preset, Intensity and Local Tone controls.
+            // Hide only the remaining explicitly removed legacy/experimental controls.
+            DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, LocalStructure));
+            DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, SkinStructure));
+            DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bAutoMask));
+            DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bUICorrection));
+            DetailBuilder.HideCategory(TEXT("Scene Guides"));
+            DetailBuilder.HideCategory(TEXT("Advanced"));
             DetailBuilder.EditCategory(TEXT("General"), LOCTEXT("GeneralCategory", "General"), ECategoryPriority::Important);
+            DetailBuilder.EditCategory(TEXT("Global Controls"), LOCTEXT("ArtCategory", "Global Controls (UE)"), ECategoryPriority::Important);
+            IDetailCategoryBuilder& MaskCategory = DetailBuilder.EditCategory(TEXT("Developer Masking"));
+            MaskCategory.AddCustomRow(LOCTEXT("MaskHelpSearch", "Object Mask Stencil"))
+            .WholeRowContent()
+            [
+                SNew(STextBlock).AutoWrapText(true)
+                .Text(LOCTEXT("MaskHelp", "Select scene objects, then assign a group. Assignments use Custom Depth Stencil and support Undo; save the level to retain them. Show Masks is included in captures."))
+            ];
+            for (int32 Group = 0; Group < 3; ++Group)
+            {
+                const FName Category(*FString::Printf(TEXT("Mask Group %d"), Group + 1));
+                DetailBuilder.EditCategory(Category).AddCustomRow(LOCTEXT("AssignMaskSearch", "Assign Selected Objects"))
+                .WholeRowContent()
+                [
+                    SNew(SButton)
+                    .Text(FText::Format(LOCTEXT("AssignMaskLabel", "Assign Selected Objects to Group {0}"), FText::AsNumber(Group + 1)))
+                    .ToolTipText(LOCTEXT("AssignMaskTip", "Assign the selected actors' primitive components to this group's stencil ID. Replaces their previous Custom Depth Stencil values; use Undo to restore. Enable Custom Depth writes in translucent materials if required."))
+                    .IsEnabled_Lambda([]() { return GEditor && GEditor->GetSelectedActorCount() > 0; })
+                    .OnClicked_Lambda([Group, Utilities]()
+                    {
+                        AssignSelectedToMaskGroup(Group);
+                        if (const auto Pinned = Utilities.Pin()) Pinned->RequestRefresh();
+                        return FReply::Handled();
+                    })
+                ];
+            }
 
             IDetailCategoryBuilder& PassCategory = DetailBuilder.EditCategory(
                 TEXT("DLSS5PassCount"),
@@ -72,6 +198,7 @@ namespace
                 ECategoryPriority::Default);
 
             PassCategory.AddCustomRow(LOCTEXT("PassCountSearch", "DLSS 5 Pass Count Passes Multi Pass"))
+            .OverrideResetToDefault(MakeReset(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, PassCount)))
             .NameContent()
             [
                 SNew(STextBlock)
@@ -114,7 +241,22 @@ namespace
                 ]
             ];
 
-            DetailBuilder.EditCategory(TEXT("Neural Controls"), LOCTEXT("NeuralControlsCategory", "Neural Controls"), ECategoryPriority::Default);
+            DetailBuilder.EditCategory(TEXT("Neural Controls"), LOCTEXT("NeuralCategory", "Neural Controls"), ECategoryPriority::Default);
+            DetailBuilder.EditCategory(TEXT("Color Preservation"), LOCTEXT("ColorCategory", "Color Preservation"), ECategoryPriority::Default);
+            DetailBuilder.EditCategory(TEXT("Comparison"), LOCTEXT("ComparisonCategory", "Before / After"), ECategoryPriority::Default);
+            // Keep the familiar controls together before the optional object groups.
+            const FName OrderedCategories[] = { TEXT("General"), TEXT("DLSS5PassCount"),
+                TEXT("Neural Controls"), TEXT("Global Controls"), TEXT("Color Preservation"),
+                TEXT("Comparison"), TEXT("Capture"), TEXT("Developer Masking"),
+                TEXT("Mask Group 1"), TEXT("Mask Group 2"), TEXT("Mask Group 3") };
+            for (int32 Index = 0; Index < UE_ARRAY_COUNT(OrderedCategories); ++Index)
+            {
+                FText Label = FText::FromName(OrderedCategories[Index]);
+                if (Index == 1) Label = LOCTEXT("PassCategory", "DLSS 5 Pass Count");
+                else if (Index == 3) Label = LOCTEXT("ArtCategory", "Global Controls (UE)");
+                else if (Index == 5) Label = LOCTEXT("ComparisonCategory", "Before / After");
+                DetailBuilder.EditCategory(OrderedCategories[Index], Label).SetSortOrder(Index);
+            }
         }
     };
 
@@ -141,24 +283,15 @@ void FDLSS5ForUE5EditorModule::StartupModule()
         DLSS5ForUE5TabName,
         FOnSpawnTab::CreateRaw(this, &FDLSS5ForUE5EditorModule::SpawnPluginTab))
         .SetDisplayName(LOCTEXT("TabTitle", "DLSS 5 for UE5"))
-        .SetTooltipText(LOCTEXT("TabTooltip", "Open DLSS 5 for UE5 controls and live diagnostics."))
+        .SetTooltipText(LOCTEXT("TabTooltip", "Open DLSS 5 for UE5 controls."))
         .SetMenuType(ETabSpawnerMenuType::Hidden);
 
     UToolMenus::RegisterStartupCallback(
         FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FDLSS5ForUE5EditorModule::RegisterMenus));
-
-    WindowTickerHandle = FTSTicker::GetCoreTicker().AddTicker(
-        FTickerDelegate::CreateRaw(this, &FDLSS5ForUE5EditorModule::TickWindow), 0.5f);
 }
 
 void FDLSS5ForUE5EditorModule::ShutdownModule()
 {
-    if (WindowTickerHandle.IsValid())
-    {
-        FTSTicker::GetCoreTicker().RemoveTicker(WindowTickerHandle);
-        WindowTickerHandle.Reset();
-    }
-
     UToolMenus::UnRegisterStartupCallback(this);
     UToolMenus::UnregisterOwner(this);
 
@@ -182,9 +315,45 @@ void FDLSS5ForUE5EditorModule::RegisterMenus()
     Section.AddMenuEntry(
         TEXT("OpenDLSS5ForUE5"),
         LOCTEXT("OpenWindow", "DLSS 5 for UE5"),
-        LOCTEXT("OpenWindowTooltip", "Open Neural Rendering controls and live diagnostics."),
+        LOCTEXT("OpenWindowTooltip", "Open Neural Rendering controls."),
         FSlateIcon(),
         FUIAction(FExecuteAction::CreateRaw(this, &FDLSS5ForUE5EditorModule::OpenWindow)));
+
+    UToolMenu* Toolbar = UToolMenus::Get()->ExtendMenu(TEXT("LevelEditor.LevelEditorToolBar.PlayToolBar"));
+    FToolMenuSection& ToolbarSection = Toolbar->FindOrAddSection(TEXT("DLSS5ForUE5"));
+    // The P4 toolbar callback may run later; resolve ordering when the menu is built.
+    const TSharedPtr<IPlugin> P4Plugin = IPluginManager::Get().FindPlugin(TEXT("UE5P4VUploadTool"));
+    if (P4Plugin.IsValid() && P4Plugin->IsEnabled())
+        ToolbarSection.InsertPosition = FToolMenuInsert(TEXT("P4VUpload"), EToolMenuInsertType::After);
+    // Compact square badge, matching the neighboring P4 icon's toolbar size.
+    ToolbarSection.AddEntry(FToolMenuEntry::InitWidget(
+        TEXT("DLSS5ToolbarButton"),
+        SNew(SButton)
+        .ButtonStyle(FAppStyle::Get(), "SimpleButton")
+        .ContentPadding(FMargin(8.0f, 4.0f))
+        .ToolTipText(LOCTEXT("D5Tooltip", "Open DLSS 5 controls"))
+        .OnClicked_Lambda([this]() { OpenWindow(); return FReply::Handled(); })
+        [
+            SNew(SBox).WidthOverride(20.0f).HeightOverride(20.0f)
+            [
+                SNew(SBorder)
+                .BorderImage(FAppStyle::GetBrush("WhiteBrush"))
+                .BorderBackgroundColor(FLinearColor(FColor(24, 24, 24)))
+                .Padding(1.0f)
+                [
+                    SNew(SBorder)
+                    .BorderImage(FAppStyle::GetBrush("WhiteBrush"))
+                    .BorderBackgroundColor(FLinearColor(FColor(190, 190, 190)))
+                    .Padding(0.0f).HAlign(HAlign_Center).VAlign(VAlign_Center)
+                    [
+                        SNew(STextBlock).Text(LOCTEXT("D5Label", "D5"))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                        .ColorAndOpacity(FLinearColor::Black)
+                    ]
+                ]
+            ]
+        ],
+        LOCTEXT("D5ToolbarLabel", "D5")));
 }
 
 void FDLSS5ForUE5EditorModule::OpenWindow()
@@ -237,8 +406,18 @@ TSharedRef<SDockTab> FDLSS5ForUE5EditorModule::SpawnPluginTab(const FSpawnTabArg
                     .Padding(0.0f, 2.0f, 0.0f, 0.0f)
                     [
                         SNew(STextBlock)
-                        .Text(LOCTEXT("Subtitle", "Neural Rendering controls, 3D scene guides, temporal settings, multi-pass processing, and diagnostics."))
+                        .Text(LOCTEXT("Subtitle", "Changes are saved automatically for this project and restored next time you open the editor."))
                     ]
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(12.0f, 0.0f, 0.0f, 0.0f)
+                [
+                    SNew(SButton)
+                    .Text(LOCTEXT("ResetDefaults", "Reset Defaults"))
+                    .ToolTipText(LOCTEXT("ResetDefaultsTip", "Restore all panel controls to factory defaults (including NR and watermark off) and save for this project."))
+                    .OnClicked_Raw(this, &FDLSS5ForUE5EditorModule::ResetDefaults)
                 ]
                 + SHorizontalBox::Slot()
                 .AutoWidth()
@@ -252,6 +431,24 @@ TSharedRef<SDockTab> FDLSS5ForUE5EditorModule::SpawnPluginTab(const FSpawnTabArg
                 ]
             ]
             + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(12.0f, 0.0f, 12.0f, 8.0f)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().AutoWidth()
+                [
+                    SNew(SButton).Text(LOCTEXT("SavePreset", "Save Preset..."))
+                    .ToolTipText(LOCTEXT("SavePresetTip", "Save the current DLSS5 settings to a reusable preset file."))
+                    .OnClicked_Raw(this, &FDLSS5ForUE5EditorModule::SavePreset)
+                ]
+                + SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)
+                [
+                    SNew(SButton).Text(LOCTEXT("LoadPreset", "Load Preset..."))
+                    .ToolTipText(LOCTEXT("LoadPresetTip", "Load, apply and remember a saved DLSS5 preset for this project."))
+                    .OnClicked_Raw(this, &FDLSS5ForUE5EditorModule::LoadPreset)
+                ]
+            ]
+            + SVerticalBox::Slot()
             .FillHeight(1.0f)
             .Padding(8.0f, 0.0f, 8.0f, 6.0f)
             [
@@ -261,168 +458,7 @@ TSharedRef<SDockTab> FDLSS5ForUE5EditorModule::SpawnPluginTab(const FSpawnTabArg
                     DetailsView.ToSharedRef()
                 ]
             ]
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(8.0f, 0.0f, 8.0f, 6.0f)
-            [
-                SNew(SBorder)
-                .Padding(8.0f)
-                [
-                    SNew(SVerticalBox)
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    [
-                        SNew(STextBlock)
-                        .Text(LOCTEXT("LiveDiagnosticsHeader", "Live Diagnostics"))
-                    ]
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    .Padding(0.0f, 4.0f, 0.0f, 0.0f)
-                    [
-                        SNew(STextBlock)
-                        .AutoWrapText(true)
-                        .Text_Lambda([]()
-                        {
-                            const UDLSS5NRSettings* Settings = GetDefault<UDLSS5NRSettings>();
-                            if (!Settings)
-                            {
-                                return LOCTEXT("NoDiagnostics", "Waiting for renderer...");
-                            }
-
-                            return FText::FromString(FString::Printf(
-                                TEXT("%s\n%s\n%s\n%s\n%s\n%s\n%s"),
-                                *Settings->DiagnosticRuntime,
-                                *Settings->DiagnosticNGX,
-                                *Settings->DiagnosticGuides,
-                                *Settings->DiagnosticSubrects,
-                                *Settings->DiagnosticTemporal,
-                                *Settings->DiagnosticCounters,
-                                *Settings->DiagnosticLastResult));
-                        })
-                    ]
-                ]
-            ]
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(8.0f, 0.0f, 8.0f, 8.0f)
-            [
-                SNew(SBorder)
-                .Padding(10.0f)
-                [
-                    SNew(SVerticalBox)
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    [
-                        SNew(STextBlock)
-                        .Text(LOCTEXT("AboutHeader", "About"))
-                    ]
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    .Padding(0.0f, 4.0f, 0.0f, 8.0f)
-                    [
-                        SNew(STextBlock)
-                        .AutoWrapText(true)
-                        .Text(LOCTEXT("AboutDescription", "Experimental native Unreal Engine integration for NVIDIA DLSS 3D-Guided Neural Rendering, with scene guides, temporal controls, sequential multi-pass processing, and live diagnostics."))
-                    ]
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    .Padding(0.0f, 0.0f, 0.0f, 6.0f)
-                    [
-                        SNew(SSeparator)
-                    ]
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    .Padding(0.0f, 2.0f, 0.0f, 2.0f)
-                    [
-                        SNew(STextBlock)
-                        .Text(LOCTEXT("DeveloperHeader", "About the Developer"))
-                    ]
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    .Padding(0.0f, 2.0f, 0.0f, 6.0f)
-                    [
-                        SNew(STextBlock)
-                        .Text(LOCTEXT("DeveloperName", "Praveen Kumar"))
-                    ]
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    [
-                        SNew(SHorizontalBox)
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(0.0f, 0.0f, 8.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                            .Text(LOCTEXT("DiscordLink", "Discord"))
-                            .OnClicked_Lambda([]()
-                            {
-                                FPlatformProcess::LaunchURL(TEXT("https://discord.com/invite/UFsuT4w"), nullptr, nullptr);
-                                return FReply::Handled();
-                            })
-                        ]
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(0.0f, 0.0f, 8.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                            .Text(LOCTEXT("InstagramLink", "Instagram"))
-                            .OnClicked_Lambda([]()
-                            {
-                                FPlatformProcess::LaunchURL(TEXT("https://instagram.com/praveenkumarappu"), nullptr, nullptr);
-                                return FReply::Handled();
-                            })
-                        ]
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(0.0f, 0.0f, 8.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                            .Text(LOCTEXT("YouTubeLink", "YouTube"))
-                            .OnClicked_Lambda([]()
-                            {
-                                FPlatformProcess::LaunchURL(TEXT("https://www.youtube.com/@MrPK"), nullptr, nullptr);
-                                return FReply::Handled();
-                            })
-                        ]
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        [
-                            SNew(SButton)
-                            .ToolTipText(LOCTEXT("GitHubTip", "Open Praveen Kumar's GitHub profile."))
-                            .Text(LOCTEXT("GitHubLink", "GitHub"))
-                            .OnClicked_Lambda([]()
-                            {
-                                FPlatformProcess::LaunchURL(TEXT("https://github.com/praveenkumarappu"), nullptr, nullptr);
-                                return FReply::Handled();
-                            })
-                        ]
-                    ]
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    .Padding(0.0f, 8.0f, 0.0f, 5.0f)
-                    [
-                        SNew(SSeparator)
-                    ]
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    [
-                        SNew(STextBlock)
-                        .Text(FText::FromString(FString::Printf(TEXT("Version: %s  |  Build: %s"), *DLSS5GetVersion(), DLSS5BuildStamp)))
-                    ]
-                ]
-            ]
         ];
-}
-
-bool FDLSS5ForUE5EditorModule::TickWindow(float DeltaTime)
-{
-    // Refresh only lightweight diagnostics backing strings. Never ForceRefresh() on a timer,
-    // because rebuilding property widgets interrupts combo boxes, sliders, and mouse capture.
-    if (UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>())
-    {
-        Settings->RefreshDiagnostics();
-    }
-    return true;
 }
 
 FReply FDLSS5ForUE5EditorModule::EnterSafeMode()
@@ -434,6 +470,7 @@ FReply FDLSS5ForUE5EditorModule::EnterSafeMode()
         Settings->bFeedSceneGuides = false;
         Settings->bUseMotionVectors = false;
         Settings->ApplyToCVars();
+        Settings->SaveUserSettings();
         Settings->RefreshDiagnostics();
     }
 
@@ -442,6 +479,65 @@ FReply FDLSS5ForUE5EditorModule::EnterSafeMode()
         DetailsView->ForceRefresh();
     }
 
+    return FReply::Handled();
+}
+
+FReply FDLSS5ForUE5EditorModule::ResetDefaults()
+{
+    if (UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>())
+    {
+        Settings->ResetToDefaults();
+        Settings->SaveUserSettings();
+    }
+    if (DetailsView.IsValid()) DetailsView->ForceRefresh();
+    return FReply::Handled();
+}
+
+FReply FDLSS5ForUE5EditorModule::SavePreset()
+{
+    static bool bDialogOpen = false;
+    if (bDialogOpen) return FReply::Handled();
+    TGuardValue<bool> DialogGuard(bDialogOpen, true);
+    IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
+    if (!Desktop) return FReply::Handled();
+    const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("DLSS5Presets"));
+    IFileManager::Get().MakeDirectory(*Folder, true);
+    TArray<FString> Files;
+    if (Desktop->SaveFileDialog(FSlateApplication::Get().FindBestParentWindowHandleForDialogs(DetailsView),
+        TEXT("Save DLSS5 Preset"), Folder, TEXT("DLSS5Preset.json"), TEXT("DLSS5 Preset (*.json)|*.json"), 0, Files) && Files.Num())
+    {
+        FString Filename = Files[0];
+        if (FPaths::GetExtension(Filename).IsEmpty()) Filename += TEXT(".json");
+        UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>();
+        Settings->LoadFromCVars();
+        FText Error;
+        if (!Settings->ExportPreset(Filename, Error)) FMessageDialog::Open(EAppMsgType::Ok, Error);
+    }
+    return FReply::Handled();
+}
+
+FReply FDLSS5ForUE5EditorModule::LoadPreset()
+{
+    static bool bDialogOpen = false;
+    if (bDialogOpen) return FReply::Handled();
+    TGuardValue<bool> DialogGuard(bDialogOpen, true);
+    IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
+    if (!Desktop) return FReply::Handled();
+    TArray<FString> Files;
+    if (Desktop->OpenFileDialog(FSlateApplication::Get().FindBestParentWindowHandleForDialogs(DetailsView),
+        TEXT("Load DLSS5 Preset"), FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("DLSS5Presets")),
+        TEXT(""), TEXT("DLSS5 Preset (*.json)|*.json"), 0, Files) && Files.Num())
+    {
+        UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>();
+        FText Error;
+        if (Settings->ImportPreset(Files[0], Error))
+        {
+            Settings->ApplyToCVars();
+            Settings->SaveUserSettings();
+            if (DetailsView.IsValid()) DetailsView->ForceRefresh();
+        }
+        else FMessageDialog::Open(EAppMsgType::Ok, Error);
+    }
     return FReply::Handled();
 }
 

@@ -62,3 +62,7 @@ Unreal Engine is a trademark or registered trademark of Epic Games, Inc. Unreal 
 ## No endorsement
 
 Use of third-party names describes interoperability only. DLSS5ForUE5 must not be represented as an official NVIDIA or Epic Games plugin.
+
+## DLSS5-Feeder source-guided color refinement
+
+`Shaders/Private/DLSS5NRColorPreserve.usf` adapts the MIT-licensed [SourceGuidedColor.fx](https://github.com/jlrouzies-fr/DLSS5-Feeder/blob/52d41bc8730e7882f0f25cd4deea97f29869c68d/shaders/SourceGuidedColor.fx), Copyright (c) 2026 Jean-Laurent ROUZIES. The full upstream license is included in `Plugins/DLSS5ForUE5/ThirdPartyNotices/DLSS5-Feeder-LICENSE.txt`. The adaptation adds UE RDG compute passes, explicit color encoding and active-rectangle handling. No bridge or proprietary runtime is imported. Oklab coefficients are public domain, from [Bjorn Ottosson](https://bottosson.github.io/posts/oklab/).

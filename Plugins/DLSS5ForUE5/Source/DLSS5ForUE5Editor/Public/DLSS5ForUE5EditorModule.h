@@ -1,7 +1,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Containers/Ticker.h"
 #include "Modules/ModuleManager.h"
 
 class IDetailsView;
@@ -19,9 +18,10 @@ private:
     void RegisterMenus();
     void OpenWindow();
     TSharedRef<SDockTab> SpawnPluginTab(const FSpawnTabArgs& Args);
-    bool TickWindow(float DeltaTime);
     FReply EnterSafeMode();
+    FReply ResetDefaults();
+    FReply SavePreset();
+    FReply LoadPreset();
 
     TSharedPtr<IDetailsView> DetailsView;
-    FTSTicker::FDelegateHandle WindowTickerHandle;
 };

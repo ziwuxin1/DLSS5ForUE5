@@ -1,0 +1,114 @@
+// Adapted from DLSS5-Feeder SourceGuidedColor.fx, MIT, Copyright (c) 2026 Jean-Laurent ROUZIES.
+// Source: 52d41bc8730e7882f0f25cd4deea97f29869c68d. Full license: ThirdPartyNotices/DLSS5-Feeder-LICENSE.txt.
+// UE adaptation: RDG lifetime, explicit sRGB/linear encoding, active view rect, HDR-value bypass.
+#include "/Engine/Public/Platform.ush"
+Texture2D<float4> OriginalColor;
+Texture2D<float4> NeuralColor;
+Texture2D<uint> EvaluationStatus;
+Texture2D<float4> SourceLab;
+Texture2D<float4> NeuralLab;
+RWTexture2D<float4> SourceLabOut;
+RWTexture2D<float4> NeuralLabOut;
+RWTexture2D<float4> RefinedColor;
+int2 RectMin;
+int2 RectSize;
+uint EncodedSRGB;
+float ColorStrength;
+float ToneStrength;
+float DetailStrength;
+Texture2D<uint> GroupMask;
+uint HasGroups;
+float4 StructureWeights;
+float4 ToneWeights;
+
+float3 ToLab(float3 rgb)
+{
+    float3 hi=pow((rgb+.055)/1.055,2.4);
+    float3 lin=EncodedSRGB != 0 ? float3(rgb.r<=.04045?rgb.r/12.92:hi.r,
+        rgb.g<=.04045?rgb.g/12.92:hi.g,rgb.b<=.04045?rgb.b/12.92:hi.b) : rgb;
+    float3 lms=float3(dot(lin,float3(.4122214708,.5363325363,.0514459929)),
+        dot(lin,float3(.2119034982,.6806995451,.1073969566)),
+        dot(lin,float3(.0883024619,.2817188376,.6299787005)));
+    lms=pow(max(lms,0),1.0/3.0);
+    return float3(dot(lms,float3(.2104542553,.7936177850,-.0040720468)),
+        dot(lms,float3(1.9779984951,-2.4285922050,.4505937099)),
+        dot(lms,float3(.0259040371,.7827717662,-.8086757660)));
+}
+float3 ToLinear(float3 lab)
+{
+    float3 lms=float3(dot(lab,float3(.999999998450520,.396337792173768,.215803758060759)),
+        dot(lab,float3(1.000000008881761,-.105561342323656,-.063854174771706)),
+        dot(lab,float3(1.000000054672411,-.089484182094966,-1.291485537864092)));
+    lms=lms*lms*lms;
+    return float3(dot(lms,float3(4.076741661347994,-3.307711590408193,.230969928729428)),
+        dot(lms,float3(-1.268438004092176,2.609757400663371,-.341319396310220)),
+        dot(lms,float3(-.004196086541837,-.703418614459450,1.707614700930945)));
+}
+bool Fits(float3 lin) { return all(lin>=0) && all(lin<=1); }
+float3 Compress(float3 lab)
+{
+    lab.x=saturate(lab.x);
+    float3 lin=ToLinear(lab);
+    if (!Fits(lin))
+    {
+        float low=0,high=1;
+        [loop] for(int i=0;i<16;++i)
+        {
+            float mid=(low+high)*.5;
+            if(Fits(ToLinear(float3(lab.x,lab.yz*mid)))) low=mid; else high=mid;
+        }
+        lin=ToLinear(float3(lab.x,lab.yz*low));
+    }
+    lin=saturate(lin);
+    float3 hi=1.055*pow(lin,1.0/2.4)-.055;
+    return EncodedSRGB != 0 ? float3(lin.r<=.0031308?lin.r*12.92:hi.r,
+        lin.g<=.0031308?lin.g*12.92:hi.g,lin.b<=.0031308?lin.b*12.92:hi.b) : lin;
+}
+[numthreads(8,8,1)]
+void PrepareCS(uint3 Id:SV_DispatchThreadID)
+{
+    if(any(Id.xy>=uint2(RectSize))) return;
+    int2 p=RectMin+int2(Id.xy);
+    float3 s=OriginalColor.Load(int3(p,0)).rgb,n=NeuralColor.Load(int3(p,0)).rgb;
+    bool valid=Fits(s)&&Fits(n);
+    SourceLabOut[Id.xy]=float4(valid?ToLab(s):0,valid?1:0);
+    NeuralLabOut[Id.xy]=float4(valid?ToLab(n):0,valid?1:0);
+}
+[numthreads(8,8,1)]
+void RefineCS(uint3 Id:SV_DispatchThreadID)
+{
+    if(any(Id.xy>=uint2(RectSize))) return;
+    int2 p=RectMin+int2(Id.xy);
+    float4 originalNeural=NeuralColor.Load(int3(p,0));
+    float4 source=SourceLab.Load(int3(Id.xy,0));
+    if(source.a==0 || EvaluationStatus.Load(int3(0,0,0))==0) { RefinedColor[p]=originalNeural; return; }
+    float3 neural=NeuralLab.Load(int3(Id.xy,0)).rgb;
+    uint group = HasGroups != 0 ? min(GroupMask.Load(int3(Id.xy, 0)), 3u) : 0;
+    float structureWeight = StructureWeights[group], toneWeight = ToneWeights[group];
+    if (structureWeight == 0 && toneWeight == 0)
+    {
+        RefinedColor[p] = float4(OriginalColor.Load(int3(p, 0)).rgb, originalNeural.a);
+        return;
+    }
+    float3 sourceSum=0,neuralSum=0;
+    float weightSum=0;
+    [loop] for(int dy=-4;dy<=4;++dy)
+    [loop] for(int dx=-4;dx<=4;++dx)
+    {
+        int2 at=clamp(int2(Id.xy)+int2(dx,dy),int2(0,0),RectSize-1);
+        float4 s=SourceLab.Load(int3(at,0));
+        float3 delta=s.rgb-source.rgb;
+        float distance=delta.x*delta.x/.01+dot(delta.yz,delta.yz)/.003025+float(dx*dx+dy*dy)/6.76;
+        float weight=s.a*exp(-.5*distance);
+        sourceSum+=s.rgb*weight;
+        neuralSum+=NeuralLab.Load(int3(at,0)).rgb*weight;
+        weightSum+=weight;
+    }
+    float3 sourceBase=sourceSum/weightSum,neuralBase=neuralSum/weightSum;
+    float3 mixedBase = lerp(sourceBase, neuralBase, toneWeight);
+    float3 mixedDetail = lerp(source.rgb-sourceBase, neural-neuralBase, structureWeight);
+    float3 correction=sourceBase-mixedBase;
+    correction.x*=ToneStrength;
+    float3 outputLab=mixedBase+mixedDetail+ColorStrength*correction+ColorStrength*(DetailStrength-1)*structureWeight*(neural-neuralBase);
+    RefinedColor[p]=float4(Compress(outputLab),originalNeural.a);
+}

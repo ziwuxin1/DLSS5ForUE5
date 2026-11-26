@@ -1,9 +1,9 @@
 {
     "FileVersion": 3,
     "Version": 601,
-    "VersionName": "0.6.1 Validation Build",
+    "VersionName": "0.6.1 UE5.8.4 Capture",
     "FriendlyName": "DLSS 5 for UE5",
-    "Description": "Unofficial UE5 D3D12 integration for NVIDIA DLSS 3D-Guided Neural Rendering. Dedicated editor UI, scene guides, isolated temporal history per view/pass, GPU-safe feature lifetime handling, 1-4 sequential Neural Rendering passes, diagnostics, and safe-mode recovery.",
+    "Description": "Unofficial UE5 D3D12 integration for NVIDIA DLSS 3D-Guided Neural Rendering. Dedicated editor UI, scene guides, isolated temporal history per view/pass, GPU-safe feature lifetime handling, 1-4 sequential Neural Rendering passes, diagnostics, and safe-mode recovery. Fork additions: high-resolution capture, ON/OFF watermark, MRQ 4K sequences and automatic settings persistence.",
     "Category": "Rendering",
     "CreatedBy": "Praveen Kumar",
     "CanContainContent": false,
@@ -23,10 +23,21 @@
             "Name": "DLSS5ForUE5Editor",
             "Type": "Editor",
             "LoadingPhase": "PostEngineInit"
+        },
+        {
+            "Name": "DLSS5ForUE5MoviePipeline",
+            "Type": "Editor",
+            "LoadingPhase": "Default"
         }
     ],
     "EnabledByDefault": true,
     "CreatedByURL": "https://github.com/praveenkumarappu",
     "DocsURL": "https://github.com/praveenkumarappu/DLSS5ForUE5",
-    "SupportURL": "https://discord.com/invite/UFsuT4w"
+    "SupportURL": "https://discord.com/invite/UFsuT4w",
+    "Plugins": [
+        {
+            "Name": "MovieRenderPipeline",
+            "Enabled": true
+        }
+    ]
 }

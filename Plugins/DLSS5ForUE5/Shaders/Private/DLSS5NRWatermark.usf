@@ -1,0 +1,56 @@
+#include "/Engine/Public/Platform.ush"
+Texture2D<float4> InputColor;
+Texture2D<uint> EvaluationStatus;
+StructuredBuffer<uint> TextCoverage;
+RWTexture2D<float4> OutputColor;
+int2 RectMin;
+int2 RectSize;
+int2 LabelOrigin;
+int2 LabelSize;
+float3 AccentColor;
+uint CompositeInvertedAlpha;
+
+float CoverageAt(int2 p, bool enabled)
+{
+    if (any(p < 0) || any(p >= int2(448, 80))) return 0;
+    uint index = uint(p.y + (enabled ? 80 : 0)) * 448 + uint(p.x);
+    return float((TextCoverage[index / 4] >> ((index % 4) * 8)) & 255) / 255.0;
+}
+float CaptionCoverage(float2 local, bool enabled)
+{
+    // Both captions have the same optical center. The coverage atlas is baked at 2x.
+    float2 at = (local - float2(98, 12)) * 2 - .5;
+    int2 p = int2(floor(at));
+    float2 t = frac(at);
+    return lerp(lerp(CoverageAt(p, enabled), CoverageAt(p + int2(1, 0), enabled), t.x),
+        lerp(CoverageAt(p + int2(0, 1), enabled), CoverageAt(p + 1, enabled), t.x), t.y);
+}
+void Composite(inout float4 color, float3 overlay, float opacity)
+{
+    color.rgb = lerp(color.rgb, overlay, opacity);
+    color.a = CompositeInvertedAlpha != 0 ? color.a * (1 - opacity) : opacity + color.a * (1 - opacity);
+}
+[numthreads(8, 8, 1)]
+void MainCS(uint3 Id : SV_DispatchThreadID)
+{
+    if (any(Id.xy >= uint2(RectSize))) return;
+    const int2 pixel = RectMin + int2(Id.xy);
+    float4 color = InputColor.Load(int3(pixel, 0));
+    const int2 offset = pixel - LabelOrigin;
+    if (all(offset >= 0) && all(offset < LabelSize))
+    {
+        const bool enabled = EvaluationStatus.Load(int3(0, 0, 0)) != 0;
+        float2 local = (float2(offset) + .5) * float2(420, 80) / float2(LabelSize);
+        if (local.y < 64)
+        {
+            Composite(color, enabled ? float3(1, 1, 1) : float3(0, 0, 0), enabled ? 1 : .72);
+            if (!enabled && (local.x < 1 || local.x > 419 || local.y < 1 || local.y > 63))
+                Composite(color, float3(.15, .15, .15), .3);
+            Composite(color, enabled ? float3(0, 0, 0) : float3(1, 1, 1), CaptionCoverage(local, enabled));
+        }
+        else if (local.y >= 70)
+            Composite(color, enabled ? AccentColor : float3(0, 0, 0), 1);
+        // Transparent gap between panel and strip.
+    }
+    OutputColor[pixel] = color;
+}
