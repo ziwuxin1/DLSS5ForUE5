@@ -73,3 +73,11 @@ The panel again exposes Style, NR Preset, Intensity and Local Tone, alongside NR
 - A clean shutdown and fresh process verified 15 CVars, including Style=1, Preset=2, PassCount=3, Intensity=0.65, LocalTone=1.7, and color/tone/detail=0.9/0.6/1.3. All matched the imported preset.
 
 The earlier limitations still apply. Color refinement is an optional additional GPU cost, not a new neural model; it does not establish HDR/OCIO/untone-mapped EXR support or improve every image. Original closed-runtime hints remain runtime-dependent. All tests that changed settings used the isolated project's personal INI, not the production project's settings.
+
+## r5 per-control factory reset
+
+- UE 5.8.4 Win64 Development Editor build succeeded. All 15 visible rows, including Passes, show the UE reset arrow at both changed and default values.
+- `DLSS5.Runtime.ConfigurationAndRecovery` passed under NullRHI. For every visible control, it checks the factory value after reset and verifies that all 28 other panel-owned CVars remain unchanged, even after SaveConfig has mutated the CDO. It also checks single-field reset persistence while retaining an unrelated custom value.
+- In the isolated editor UI, clicked Local Tone (1.7 to 1), Passes (3 to 1), Style (Cinematic to Natural), watermark enable (on to off) and watermark scale (1.5 to 1, after re-enabling the watermark). Other customized values remained visible. Disabled dependent fields retain UE's normal edit-condition behavior.
+- A clean editor restart verified all 15 visible-control CVars against the resulting configuration; all matched, including the reset values and retained Intensity 0.65, Preset 2 and Effect Strength 0.35.
+- This revision changes settings/reset UI only. Rendering shaders and capture paths are unchanged; the earlier r4 GPU/MRQ results were not repeated or claimed as fresh r5 rendering tests.

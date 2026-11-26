@@ -36,6 +36,9 @@ public:
     void LoadFromCVars();
     // Restore constructor defaults, not the mutable CDO or saved project values.
     void ResetToDefaults();
+    // Reset only this control using the registered CVar's immutable factory value.
+    // Does not save; the editor calls SaveUserSettings after a successful reset.
+    bool ResetPropertyToDefault(FName PropertyName);
     void RefreshDiagnostics();
     bool ExportPreset(const FString& Filename, FText& Error) const;
     // Validates the complete file before changing this object; caller applies/saves on success.

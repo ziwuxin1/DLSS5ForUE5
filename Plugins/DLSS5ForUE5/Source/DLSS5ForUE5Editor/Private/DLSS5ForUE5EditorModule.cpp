@@ -9,6 +9,8 @@
 #include "Framework/Docking/TabManager.h"
 #include "HAL/IConsoleManager.h"
 #include "IDetailCustomization.h"
+#include "IDetailPropertyRow.h"
+#include "IPropertyUtilities.h"
 #include "IDetailsView.h"
 #include "Interfaces/IPluginManager.h"
 #include "PropertyEditorModule.h"
@@ -67,6 +69,42 @@ namespace
 
         virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
         {
+            const TWeakPtr<IPropertyUtilities> Utilities = DetailBuilder.GetPropertyUtilities();
+            const auto MakeReset = [Utilities](FName PropertyName)
+            {
+                // Always show the familiar UE reset arrow, even when already at
+                // default. The regular CDO-based comparison cannot work here.
+                return FResetToDefaultOverride::Create(FSimpleDelegate::CreateLambda([Utilities, PropertyName]()
+                {
+                    UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>();
+                    if (Settings->ResetPropertyToDefault(PropertyName))
+                    {
+                        Settings->SaveUserSettings();
+                        if (const TSharedPtr<IPropertyUtilities> Pinned = Utilities.Pin()) Pinned->RequestRefresh();
+                    }
+                }));
+            };
+            const FName ResettableProperties[] = {
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bEnableNeuralRendering),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Style),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Preset),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, EffectStrength),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Intensity),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, LocalTone),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bShowWatermark),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, WatermarkCorner),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, WatermarkScale),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, ColorPreserve),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, TonePreserve),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, NeuralDetail),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bCompare),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, SplitPosition)
+            };
+            for (FName PropertyName : ResettableProperties)
+            {
+                if (IDetailPropertyRow* Row = DetailBuilder.EditDefaultProperty(DetailBuilder.GetProperty(PropertyName)))
+                    Row->OverrideResetToDefault(MakeReset(PropertyName));
+            }
             // Retain the requested Style, Preset, Intensity and Local Tone controls.
             // Hide only the remaining explicitly removed legacy/experimental controls.
             DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, LocalStructure));
@@ -83,6 +121,7 @@ namespace
                 ECategoryPriority::Default);
 
             PassCategory.AddCustomRow(LOCTEXT("PassCountSearch", "DLSS 5 Pass Count Passes Multi Pass"))
+            .OverrideResetToDefault(MakeReset(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, PassCount)))
             .NameContent()
             [
                 SNew(STextBlock)

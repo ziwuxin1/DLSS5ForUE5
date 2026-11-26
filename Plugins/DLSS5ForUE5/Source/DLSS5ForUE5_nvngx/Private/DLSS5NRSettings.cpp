@@ -132,6 +132,40 @@ void UDLSS5NRSettings::ResetToDefaults()
     LoadFromCVars();
 }
 
+bool UDLSS5NRSettings::ResetPropertyToDefault(FName PropertyName)
+{
+    // The settings CDO is mutable (including after SaveConfig); it is not a
+    // factory-default template. Never reset all CVars to obtain a single value.
+    static const TPair<FName, const TCHAR*> Controls[] = {
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bEnableNeuralRendering), TEXT("Enable") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Style), TEXT("Style") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Preset), TEXT("Preset") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, EffectStrength), TEXT("Blend") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, PassCount), TEXT("PassCount") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Intensity), TEXT("Intensity") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, LocalTone), TEXT("LocalTone") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bShowWatermark), TEXT("Watermark") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, WatermarkCorner), TEXT("Watermark.Corner") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, WatermarkScale), TEXT("Watermark.Scale") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, ColorPreserve), TEXT("ColorPreserve") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, TonePreserve), TEXT("TonePreserve") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, NeuralDetail), TEXT("NeuralDetail") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bCompare), TEXT("Compare") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, SplitPosition), TEXT("Compare.Split") }
+    };
+    for (const auto& Control : Controls)
+    {
+        if (Control.Key != PropertyName) continue;
+        IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(
+            *FString::Printf(TEXT("r.DLSS5.%s"), Control.Value));
+        if (!Variable) return false;
+        Variable->Set(*Variable->GetDefaultValue(), ECVF_SetByConsole);
+        LoadFromCVars();
+        return true;
+    }
+    return false;
+}
+
 void UDLSS5NRSettings::LoadUserSettings()
 {
 #if WITH_EDITOR

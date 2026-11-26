@@ -105,7 +105,7 @@ See [v0.6.1 release notes](RELEASE_NOTES_v0.6.1.md) and [contributor credits](CO
 
 - **D5** toolbar button and **Tools > DLSS 5 for UE5** window
 - UE final-image **Effect Strength** blend and original/processed split comparison
-- Automatic per-project/user settings persistence and one-click **Reset Defaults**
+- Automatic per-project/user settings persistence, a reset arrow on each control, and one-click **Reset Defaults**
 - Optional ON/OFF watermark in High Resolution Screenshots and 4K MRQ PNG/EXR sequences
 - Style, NR Preset, Intensity and Local Tone retained; structure/mask and experimental depth/motion controls hidden
 - Source-guided color / tone preservation and neural detail gain (optional; SDR and tone-mapped MRQ)

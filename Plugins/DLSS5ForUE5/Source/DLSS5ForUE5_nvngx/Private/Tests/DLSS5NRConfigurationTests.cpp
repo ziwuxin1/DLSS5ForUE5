@@ -84,6 +84,46 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     Passes->SetFlags(EConsoleVariableFlags(Passes->GetFlags() & ~ECVF_SetByMask));
     Reloaded->ApplyToCVars(true);
     TestEqual(TEXT("Saved startup value replaces constructor default"), Passes->GetInt(), 3);
+    // Regression: each row resets only its own live CVar after saving has
+    // mutated the CDO. Include booleans, enum, integer, float and custom slider.
+    struct FResetCase { FName Property; const TCHAR* CVar; const TCHAR* Changed; };
+    const FResetCase ResetCases[] = {
+        { TEXT("bEnableNeuralRendering"), TEXT("Enable"), TEXT("1") },
+        { TEXT("Style"), TEXT("Style"), TEXT("1") },
+        { TEXT("Preset"), TEXT("Preset"), TEXT("2") },
+        { TEXT("EffectStrength"), TEXT("Blend"), TEXT("0.35") },
+        { TEXT("PassCount"), TEXT("PassCount"), TEXT("3") },
+        { TEXT("Intensity"), TEXT("Intensity"), TEXT("0.65") },
+        { TEXT("LocalTone"), TEXT("LocalTone"), TEXT("1.7") },
+        { TEXT("bShowWatermark"), TEXT("Watermark"), TEXT("1") },
+        { TEXT("WatermarkCorner"), TEXT("Watermark.Corner"), TEXT("2") },
+        { TEXT("WatermarkScale"), TEXT("Watermark.Scale"), TEXT("1.5") },
+        { TEXT("ColorPreserve"), TEXT("ColorPreserve"), TEXT("0.9") },
+        { TEXT("TonePreserve"), TEXT("TonePreserve"), TEXT("0.6") },
+        { TEXT("NeuralDetail"), TEXT("NeuralDetail"), TEXT("1.3") },
+        { TEXT("bCompare"), TEXT("Compare"), TEXT("1") },
+        { TEXT("SplitPosition"), TEXT("Compare.Split"), TEXT("0.7") }
+    };
+    for (const auto& Case : ResetCases)
+    {
+        IConsoleVariable* Target = IConsoleManager::Get().FindConsoleVariable(*FString::Printf(TEXT("r.DLSS5.%s"), Case.CVar));
+        Target->Set(Case.Changed, ECVF_SetByConsole);
+        TArray<FString> Before;
+        for (const auto& Entry : Saved) Before.Add(Entry.V->GetString());
+        TestTrue(*Case.Property.ToString(), Reloaded->ResetPropertyToDefault(Case.Property));
+        TestEqual(TEXT("Single reset uses factory value"), Target->GetFloat(), FCString::Atof(*Target->GetDefaultValue()));
+        for (int32 Index = 0; Index < Saved.Num(); ++Index)
+            if (Saved[Index].V != Target)
+                TestEqual(TEXT("Single reset leaves every other CVar unchanged"), Saved[Index].V->GetString(), Before[Index]);
+    }
+    TestFalse(TEXT("Unknown property cannot reset settings"), Reloaded->ResetPropertyToDefault(TEXT("NotAControl")));
+    Reloaded->Intensity = .65f; Reloaded->LocalTone = 1.7f; Reloaded->ApplyToCVars();
+    Reloaded->ResetPropertyToDefault(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, LocalTone));
+    GConfig->UnloadFile(Ini);
+    Reloaded->SaveConfig(CPF_Config, *Ini);
+    Settings->LoadConfig(Settings->GetClass(), *Ini);
+    TestEqual(TEXT("Single reset persists factory Local Tone"), Settings->LocalTone, 1.0f);
+    TestEqual(TEXT("Single reset preserves unrelated saved Intensity"), Settings->Intensity, .65f);
     // SaveConfig above mutates the CDO: resetting from that CDO would retain user values.
     // Exercise the actual reset against both visible controls and hidden legacy controls.
     Reloaded->bEnableSceneGuides = true;
