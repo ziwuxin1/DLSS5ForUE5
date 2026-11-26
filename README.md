@@ -1,6 +1,6 @@
 # DLSS5ForUE5
 
-> **ziwuxin1 fork — UE 5.8.4 capture work:** High Resolution Screenshot handling, optional DLSS5 ON/OFF image watermark, MRQ job controls, a 4K PNG/EXR preset script, and automatic settings persistence. See [capture setup and scope](docs/UE584_CAPTURE.md). The v0.6.1 release information below describes the upstream baseline.
+> **ziwuxin1 fork — UE 5.8.4 capture work:** High Resolution Screenshot handling, optional DLSS5 ON/OFF image watermark, MRQ job controls, a 4K PNG/EXR preset script, automatic settings persistence, per-control reset, and UE-side structure/tone controls with three object-mask groups. See [capture setup and scope](docs/UE584_CAPTURE.md). The v0.6.1 release information below describes the upstream baseline.
 
 [![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.5%E2%80%935.8-313131?style=flat-square&logo=unrealengine&logoColor=white)](docs/INSTALLATION.md)
 [![Windows Editor](https://img.shields.io/badge/Windows-Editor%20Win64-0078D4?style=flat-square&logo=windows&logoColor=white)](docs/INSTALLATION.md)

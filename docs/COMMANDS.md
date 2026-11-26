@@ -80,3 +80,22 @@ See [UE 5.8.4 capture](UE584_CAPTURE.md) for HighResShot and 4K MRQ sequence set
 | `r.DLSS5.NeuralDetail` | 1 | 0..2 residual detail gain, scaled by ColorPreserve. |
 
 See [color preservation and presets](UE584_CAPTURE.md) for color-space limits and JSON preset exchange. These controls affect viewport, HighResShot and MRQ through the same GPU pass.
+
+## UE art direction and object masks
+
+- `r.DLSS5.Art.Structure` (default `1.0`): UE frequency blend: 0 keeps source detail, 1 keeps neural detail. Independent of the runtime hint.
+- `r.DLSS5.Art.Tone` (default `1.0`): UE frequency blend: 0 keeps source lighting and color base, 1 keeps the neural base.
+- `r.DLSS5.Mask.Enable` (default `false`): Use UE Custom Depth Stencil groups. Enables stencil rendering for this session while active.
+- `r.DLSS5.Mask.Preview` (default `false`): Preview group 1 red, 2 green, 3 blue. Included in captures: turn off before final output.
+- `r.DLSS5.Mask.Group1.Enable` (default `true`): Disabled groups follow the global intensities.
+- `r.DLSS5.Mask.Group1.Stencil` (default `201`): Choose a distinct ID from 1 to 255. Shared with other project effects; the first enabled matching group wins.
+- `r.DLSS5.Mask.Group1.Structure` (default `1.0`): Override global structure for visible objects in this group.
+- `r.DLSS5.Mask.Group1.Tone` (default `1.0`): Override global tone for visible objects in this group. Set both intensities to zero to protect the original image.
+- `r.DLSS5.Mask.Group2.Enable` (default `true`): Disabled groups follow the global intensities.
+- `r.DLSS5.Mask.Group2.Stencil` (default `202`): Choose a distinct ID from 1 to 255. Shared with other project effects; the first enabled matching group wins.
+- `r.DLSS5.Mask.Group2.Structure` (default `1.0`): Override global structure for visible objects in this group.
+- `r.DLSS5.Mask.Group2.Tone` (default `1.0`): Override global tone for visible objects in this group. Set both intensities to zero to protect the original image.
+- `r.DLSS5.Mask.Group3.Enable` (default `true`): Disabled groups follow the global intensities.
+- `r.DLSS5.Mask.Group3.Stencil` (default `203`): Choose a distinct ID from 1 to 255. Shared with other project effects; the first enabled matching group wins.
+- `r.DLSS5.Mask.Group3.Structure` (default `1.0`): Override global structure for visible objects in this group.
+- `r.DLSS5.Mask.Group3.Tone` (default `1.0`): Override global tone for visible objects in this group. Set both intensities to zero to protect the original image.

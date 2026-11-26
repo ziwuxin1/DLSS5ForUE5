@@ -118,6 +118,40 @@ FDLSS5NRViewExtension::FDLSS5NRViewExtension(const FAutoRegister& AutoRegister)
 {
 }
 
+void FDLSS5NRViewExtension::PreRenderViewFamily_RenderThread(FRDGBuilder&, FSceneViewFamily& Family)
+{
+    PendingWatermarks.Remove(&Family);
+}
+
+void FDLSS5NRViewExtension::PostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& Family)
+{
+    TArray<FWatermarkView> Pending;
+    if (!PendingWatermarks.RemoveAndCopyValue(&Family, Pending) || !Family.RenderTarget) return;
+    FRDGTextureRef Target = TryCreateViewFamilyTexture(GraphBuilder, Family);
+    if (!Target) return;
+    // Render at final pixel resolution, after UE's spatial scaling and alpha transform.
+    // Keep the per-sample GPU success texture; never substitute a CPU enable flag.
+    for (const FWatermarkView& Entry : Pending)
+    {
+        if (Entry.Graph != &GraphBuilder || !Entry.View || !Entry.Status) continue;
+        const FSceneView& View = *Entry.View;
+        FIntRect Rect = View.UnscaledViewRect;
+        Rect.Clip(FIntRect(FIntPoint::ZeroValue, Target->Desc.Extent));
+        if (Rect.Area() <= 0) continue;
+        const bool bEncoded = GetTonemapperOutputDeviceParameters(Family).OutputDevice == uint32(EDisplayOutputFormat::SDR_sRGB)
+            && !EnumHasAnyFlags(Target->Desc.Flags, TexCreate_SRGB);
+        const FScreenPassTexture Marked = AddDLSS5NRWatermarkPass(GraphBuilder, View,
+            FScreenPassTexture(Target, Rect), Entry.Status, Entry.Corner, Entry.Scale, bEncoded, true);
+        if (Marked.Texture == Target) continue;
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 6
+        const FScreenPassViewInfo ViewInfo(View.GetFeatureLevel());
+#else
+        const FScreenPassViewInfo ViewInfo(View);
+#endif
+        AddDrawTexturePass(GraphBuilder, ViewInfo, Marked, FScreenPassRenderTarget(Target, Rect, ERenderTargetLoadAction::ELoad));
+    }
+}
+
 void FDLSS5NRViewExtension::SubscribeToPostProcessingPass(
     EPostProcessingPass Pass,
     const FSceneView& InView,
@@ -133,7 +167,8 @@ void FDLSS5NRViewExtension::SubscribeToPostProcessingPass(
     {
         // If NR is disabled for one or more frames, do not reuse stale history when it comes back.
         HistoryByView.Reset();
-        if (DLSS5NR::GetWatermark() == 0) return;
+        if (DLSS5NR::GetWatermark() == 0 &&
+            !(DLSS5NR::GetDeveloperMasking() && DLSS5NR::GetShowDeveloperMasks())) return;
     }
 
     // Tonemap remains the v0.4 insertion point: temporal upscaling / DLSS has already produced
@@ -164,14 +199,31 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
 #endif
     const bool bSupportedView = IsSupportedNRView(View);
     const bool bWatermark = bSupportedView && DLSS5NR::GetWatermark() != 0;
-    const bool bNeedStatus = bWatermark || DLSS5NR::GetColorPreserve() > 0.0f;
+    FDLSS5NRArtControls Art;
+    Art.Structure = DLSS5NR::GetArtStructure();
+    Art.Tone = DLSS5NR::GetArtTone();
+    FRDGTextureRef ObjectGroups = nullptr;
+    if (bSupportedView && DLSS5NR::GetDeveloperMasking() != 0)
+    {
+        for (int32 Index = 0; Index < 3; ++Index) Art.Groups[Index] = DLSS5NR::GetMaskGroup(Index);
+        if (auto* UniformBuffer = Inputs.SceneTextures.SceneTextures.GetUniformBuffer())
+        {
+            if (const auto* Textures = UniformBuffer->GetContents())
+                ObjectGroups = AddDLSS5NRObjectMaskPass(GraphBuilder, View, Textures->SceneDepthTexture,
+                    Textures->CustomDepthTexture, Textures->CustomStencilTexture,
+                    static_cast<const FViewInfo&>(View).ViewRect, SceneColor.ViewRect.Size(), Art);
+        }
+    }
+    const bool bNeedStatus = bWatermark || DLSS5NR::GetColorPreserve() > 0.0f || Art.NeedsRefinement();
     FRDGTextureRef EvaluationStatus = bNeedStatus ? CreateDLSS5NRStatusTexture(GraphBuilder, 0) : nullptr;
     const auto FinishOutput = [&](FScreenPassTexture Color)
     {
+        if (ObjectGroups && DLSS5NR::GetShowDeveloperMasks() != 0)
+            Color = AddDLSS5NRMaskPreviewPass(GraphBuilder, View, Color, ObjectGroups);
         if (bWatermark)
         {
-            Color = AddDLSS5NRWatermarkPass(GraphBuilder, View, Color, EvaluationStatus,
-                DLSS5NR::GetWatermarkCorner(), DLSS5NR::GetWatermarkScale());
+            PendingWatermarks.FindOrAdd(View.Family).Add({ &View, EvaluationStatus, &GraphBuilder,
+                DLSS5NR::GetWatermarkCorner(), DLSS5NR::GetWatermarkScale() });
         }
         if (Inputs.OverrideOutput.IsValid())
         {
@@ -554,7 +606,7 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
         FinalNROutput = PassOutput;
     }
 
-    if (DLSS5NR::GetColorPreserve() > 0.0f)
+    if (DLSS5NR::GetColorPreserve() > 0.0f || Art.NeedsRefinement())
     {
         const auto Device = GetTonemapperOutputDeviceParameters(*View.Family);
         const bool bSRGB = Device.OutputDevice == uint32(EDisplayOutputFormat::SDR_sRGB);
@@ -564,7 +616,7 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
         const bool bEncoded = bSRGB && !EnumHasAnyFlags(SceneColor.Texture->Desc.Flags, TexCreate_SRGB);
         if (bSupported)
             FinalNROutput = AddDLSS5NRColorPreservePass(GraphBuilder, View, SceneColor.Texture, FinalNROutput,
-                ColorRect, bEncoded, DLSS5NR::GetColorPreserve(), DLSS5NR::GetTonePreserve(), DLSS5NR::GetNeuralDetail(), EvaluationStatus);
+                ColorRect, bEncoded, DLSS5NR::GetColorPreserve(), DLSS5NR::GetTonePreserve(), DLSS5NR::GetNeuralDetail(), EvaluationStatus, &Art, ObjectGroups);
         // Only log transitions, not every frame. Also records the actual MRQ encoding for validation.
         static uint64 LastColorMode = MAX_uint64;
         const uint64 Mode = (uint64(Device.OutputDevice) << 32) | (uint64(Device.OutputGamut) << 8) | uint64(bEncoded);

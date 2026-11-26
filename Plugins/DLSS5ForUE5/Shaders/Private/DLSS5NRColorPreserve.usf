@@ -16,6 +16,10 @@ uint EncodedSRGB;
 float ColorStrength;
 float ToneStrength;
 float DetailStrength;
+Texture2D<uint> GroupMask;
+uint HasGroups;
+float4 StructureWeights;
+float4 ToneWeights;
 
 float3 ToLab(float3 rgb)
 {
@@ -79,6 +83,13 @@ void RefineCS(uint3 Id:SV_DispatchThreadID)
     float4 source=SourceLab.Load(int3(Id.xy,0));
     if(source.a==0 || EvaluationStatus.Load(int3(0,0,0))==0) { RefinedColor[p]=originalNeural; return; }
     float3 neural=NeuralLab.Load(int3(Id.xy,0)).rgb;
+    uint group = HasGroups != 0 ? min(GroupMask.Load(int3(Id.xy, 0)), 3u) : 0;
+    float structureWeight = StructureWeights[group], toneWeight = ToneWeights[group];
+    if (structureWeight == 0 && toneWeight == 0)
+    {
+        RefinedColor[p] = float4(OriginalColor.Load(int3(p, 0)).rgb, originalNeural.a);
+        return;
+    }
     float3 sourceSum=0,neuralSum=0;
     float weightSum=0;
     [loop] for(int dy=-4;dy<=4;++dy)
@@ -94,8 +105,10 @@ void RefineCS(uint3 Id:SV_DispatchThreadID)
         weightSum+=weight;
     }
     float3 sourceBase=sourceSum/weightSum,neuralBase=neuralSum/weightSum;
-    float3 correction=sourceBase-neuralBase;
+    float3 mixedBase = lerp(sourceBase, neuralBase, toneWeight);
+    float3 mixedDetail = lerp(source.rgb-sourceBase, neural-neuralBase, structureWeight);
+    float3 correction=sourceBase-mixedBase;
     correction.x*=ToneStrength;
-    float3 outputLab=neural+ColorStrength*correction+ColorStrength*(DetailStrength-1)*(neural-neuralBase);
+    float3 outputLab=mixedBase+mixedDetail+ColorStrength*correction+ColorStrength*(DetailStrength-1)*structureWeight*(neural-neuralBase);
     RefinedColor[p]=float4(Compress(outputLab),originalNeural.a);
 }

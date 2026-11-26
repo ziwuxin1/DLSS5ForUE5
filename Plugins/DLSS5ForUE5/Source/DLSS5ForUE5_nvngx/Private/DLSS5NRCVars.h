@@ -4,6 +4,11 @@
 
 namespace DLSS5NR
 {
+    float GetArtStructure();
+    float GetArtTone();
+    int32 GetDeveloperMasking();
+    int32 GetShowDeveloperMasks();
+    FVector4f GetMaskGroup(int32 Index);
     float GetColorPreserve();
     float GetTonePreserve();
     float GetNeuralDetail();

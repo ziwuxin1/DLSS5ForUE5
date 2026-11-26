@@ -1,0 +1,43 @@
+#include "/Engine/Public/Platform.ush"
+Texture2D<float> SceneDepth;
+Texture2D<float> CustomDepth;
+Texture2D<uint2> CustomStencil;
+RWTexture2D<uint> GroupOutput;
+int2 DepthMin;
+int2 DepthSize;
+int2 ColorSize;
+float4 StencilIDs;
+
+Texture2D<float4> InputColor;
+Texture2D<uint> GroupMask;
+RWTexture2D<float4> PreviewOutput;
+int2 RectMin;
+
+[numthreads(8, 8, 1)]
+void ResolveMaskCS(uint3 Id : SV_DispatchThreadID)
+{
+    if (any(Id.xy >= uint2(ColorSize))) return;
+    int2 p = DepthMin + min(int2((float2(Id.xy) + .5) * float2(DepthSize) / float2(ColorSize)), DepthSize - 1);
+    uint stencil = CustomStencil.Load(int3(p, 0)) STENCIL_COMPONENT_SWIZZLE;
+    float scene = SceneDepth.Load(int3(p, 0)), custom = CustomDepth.Load(int3(p, 0));
+    uint group = 0;
+    // UE desktop uses reversed Z: reject custom-depth surfaces hidden by the scene.
+    if (stencil != 0 && custom > 0 && custom >= scene - max(1e-6, abs(scene) * 1e-4))
+    {
+        if (stencil == int(StencilIDs.x)) group = 1;
+        else if (stencil == int(StencilIDs.y)) group = 2;
+        else if (stencil == int(StencilIDs.z)) group = 3;
+    }
+    GroupOutput[Id.xy] = group;
+}
+[numthreads(8, 8, 1)]
+void PreviewCS(uint3 Id : SV_DispatchThreadID)
+{
+    if (any(Id.xy >= uint2(ColorSize))) return;
+    int2 p = RectMin + int2(Id.xy);
+    float4 color = InputColor.Load(int3(p, 0));
+    uint group = GroupMask.Load(int3(Id.xy, 0));
+    float3 tint = group == 1 ? float3(1, .04, .02) : group == 2 ? float3(.02, 1, .04) : float3(.02, .15, 1);
+    if (group != 0) color.rgb = lerp(color.rgb, tint, .6);
+    PreviewOutput[p] = color;
+}

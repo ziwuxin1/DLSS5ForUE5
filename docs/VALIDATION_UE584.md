@@ -1,6 +1,6 @@
 # UE 5.8.4 capture validation
 
-Tested locally on 2026-11-25. These results apply to the fork additions, not every upstream configuration.
+Initial validation on 2026-11-25; r6 checks on 2026-11-26. These results apply to the fork additions, not every upstream configuration.
 
 ## Configuration
 
@@ -81,3 +81,17 @@ The earlier limitations still apply. Color refinement is an optional additional 
 - In the isolated editor UI, clicked Local Tone (1.7 to 1), Passes (3 to 1), Style (Cinematic to Natural), watermark enable (on to off) and watermark scale (1.5 to 1, after re-enabling the watermark). Other customized values remained visible. Disabled dependent fields retain UE's normal edit-condition behavior.
 - A clean editor restart verified all 15 visible-control CVars against the resulting configuration; all matched, including the reset values and retained Intensity 0.65, Preset 2 and Effect Strength 0.35.
 - This revision changes settings/reset UI only. Rendering shaders and capture paths are unchanged; the earlier r4 GPU/MRQ results were not repeated or claimed as fresh r5 rendering tests.
+
+
+## r6 artwork, global controls and object masks
+
+- UE 5.8.4 Win64 Development Editor compiled successfully. All nine DX12 automation tests passed. New GPU tests cover independent structure/tone weights, neutral bypass, exact source reconstruction at zero, visible/occluded stencil groups, depth/color resolution mapping, three preview tints, alpha, and six 4K watermark status/color/alpha cases. Configuration tests cover all 31 visible reset rows; preset tests cover v2 round-trip and complete v1 migration.
+- Final-resolution watermark rendering occurs after UE spatial scaling. Actual 4K screenshot and MRQ PNG strip interiors are uniform RGB (118,185,0); decoded EXR uses the matching linear values. Captions, white/translucent panels, black Off strip and opaque output alpha were checked. This replaced an intermediate version whose pre-upscale watermark was blurred and contaminated at strip edges.
+- Tuxi acceptance in an isolated project produced seven 3840x2160 screenshots and three PNG plus three EXR sequence frames. Native feature 18 was created at 3840x2160 for MRQ; the full capture run reported 111 successful evaluations out of 111, zero failed (includes viewport/warm-up renders). Screenshot NR input remained 1920x1080 before UE output scaling; watermark text is now rendered at final resolution.
+- Three foreground test meshes showed red/green/blue stencil previews, including with NR and watermark both disabled. Global structure/tone and object-protection screenshots were captured. Synthetic GPU tests isolate parameter behavior; separately captured production-scene images are not a model-quality benchmark. Production map/assets and personal settings were not saved or changed by these tests.
+- UI checks: clicked the D5 toolbar square to open the panel; assigned a selected actor to group 1 (Custom Depth on, stencil 201), then used Undo to recover its prior depth flag and stencil 17. Resetting Tone Intensity changed only that setting (0.37 to 1), retaining Structure 0.63. A fresh editor process restored all 31 expected visible-control CVars.
+- Preset/model scope: the added controls are UE-side image refinement and engine stencil masks. Native Model A/B/C selection and NVIDIA semantic automask are not claimed. Existing Style/Preset/Intensity/Local Tone retain their opaque runtime mappings.
+
+- Three additional native 4K MRQ jobs with preset 2 completed and each editor process exited with code 0. An earlier acceptance harness called `quit_editor()` from its async callback while the `-ExecutePythonScript` notification was alive. This bypassed `FEditorPythonExecuter::DestroyNotification` and caused intermittent late Slate teardown faults after successful output. The corrected harness clears `set_keep_python_script_alive(False)` and lets UE's script runner clean up and defer exit. The speculative runtime/UI teardown changes were removed; these are test-harness results, not a claimed NVIDIA-runtime shutdown fix.
+
+The previous HDR/OCIO, packaged-native, tiled MRQ and long-render limitations remain. Local build ZIPs exclude the NVIDIA runtime.

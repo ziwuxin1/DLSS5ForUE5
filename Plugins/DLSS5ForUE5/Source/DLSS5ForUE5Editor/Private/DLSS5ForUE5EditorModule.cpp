@@ -26,14 +26,49 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Editor.h"
+#include "Engine/Selection.h"
+#include "Components/PrimitiveComponent.h"
+#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "DLSS5ForUE5Editor"
 
 namespace
 {
     const FName DLSS5ForUE5TabName(TEXT("DLSS5ForUE5"));
+
+    void AssignSelectedToMaskGroup(int32 Group)
+    {
+        if (!GEditor || GEditor->GetSelectedActorCount() == 0) return;
+        UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>();
+        const int32 IDs[] = { Settings->MaskGroup1Stencil, Settings->MaskGroup2Stencil, Settings->MaskGroup3Stencil };
+        const FScopedTransaction Transaction(LOCTEXT("AssignMaskTransaction", "Assign DLSS5 Object Mask"));
+        for (FSelectionIterator It(*GEditor->GetSelectedActors()); It; ++It)
+        {
+            if (AActor* Actor = Cast<AActor>(*It))
+            {
+                Actor->Modify();
+                TInlineComponentArray<UPrimitiveComponent*> Components(Actor);
+                for (UPrimitiveComponent* Component : Components)
+                {
+                    // Explicit user action. UE undo restores any pre-existing stencil assignment.
+                    Component->Modify();
+                    Component->SetRenderCustomDepth(true);
+                    Component->SetCustomDepthStencilValue(FMath::Clamp(IDs[Group], 1, 255));
+                }
+            }
+        }
+        Settings->bDeveloperMasking = true;
+        if (Group == 0) Settings->bMaskGroup1Enabled = true;
+        else if (Group == 1) Settings->bMaskGroup2Enabled = true;
+        else Settings->bMaskGroup3Enabled = true;
+        Settings->ApplyToCVars();
+        Settings->SaveUserSettings();
+        GEditor->RedrawAllViewports();
+    }
 
     int32 GetPassCount()
     {
@@ -85,6 +120,22 @@ namespace
                 }));
             };
             const FName ResettableProperties[] = {
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, GlobalStructure),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, GlobalTone),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bDeveloperMasking),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bShowDeveloperMasks),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bMaskGroup1Enabled),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup1Stencil),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup1Structure),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup1Tone),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bMaskGroup2Enabled),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup2Stencil),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup2Structure),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup2Tone),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bMaskGroup3Enabled),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup3Stencil),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup3Structure),
+                GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup3Tone),
                 GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bEnableNeuralRendering),
                 GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Style),
                 GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Preset),
@@ -114,6 +165,32 @@ namespace
             DetailBuilder.HideCategory(TEXT("Scene Guides"));
             DetailBuilder.HideCategory(TEXT("Advanced"));
             DetailBuilder.EditCategory(TEXT("General"), LOCTEXT("GeneralCategory", "General"), ECategoryPriority::Important);
+            DetailBuilder.EditCategory(TEXT("Global Controls"), LOCTEXT("ArtCategory", "Global Controls (UE)"), ECategoryPriority::Important);
+            IDetailCategoryBuilder& MaskCategory = DetailBuilder.EditCategory(TEXT("Developer Masking"));
+            MaskCategory.AddCustomRow(LOCTEXT("MaskHelpSearch", "Object Mask Stencil"))
+            .WholeRowContent()
+            [
+                SNew(STextBlock).AutoWrapText(true)
+                .Text(LOCTEXT("MaskHelp", "Select scene objects, then assign a group. Assignments use Custom Depth Stencil and support Undo; save the level to retain them. Show Masks is included in captures."))
+            ];
+            for (int32 Group = 0; Group < 3; ++Group)
+            {
+                const FName Category(*FString::Printf(TEXT("Mask Group %d"), Group + 1));
+                DetailBuilder.EditCategory(Category).AddCustomRow(LOCTEXT("AssignMaskSearch", "Assign Selected Objects"))
+                .WholeRowContent()
+                [
+                    SNew(SButton)
+                    .Text(FText::Format(LOCTEXT("AssignMaskLabel", "Assign Selected Objects to Group {0}"), FText::AsNumber(Group + 1)))
+                    .ToolTipText(LOCTEXT("AssignMaskTip", "Assign the selected actors' primitive components to this group's stencil ID. Replaces their previous Custom Depth Stencil values; use Undo to restore. Enable Custom Depth writes in translucent materials if required."))
+                    .IsEnabled_Lambda([]() { return GEditor && GEditor->GetSelectedActorCount() > 0; })
+                    .OnClicked_Lambda([Group, Utilities]()
+                    {
+                        AssignSelectedToMaskGroup(Group);
+                        if (const auto Pinned = Utilities.Pin()) Pinned->RequestRefresh();
+                        return FReply::Handled();
+                    })
+                ];
+            }
 
             IDetailCategoryBuilder& PassCategory = DetailBuilder.EditCategory(
                 TEXT("DLSS5PassCount"),
@@ -167,6 +244,19 @@ namespace
             DetailBuilder.EditCategory(TEXT("Neural Controls"), LOCTEXT("NeuralCategory", "Neural Controls"), ECategoryPriority::Default);
             DetailBuilder.EditCategory(TEXT("Color Preservation"), LOCTEXT("ColorCategory", "Color Preservation"), ECategoryPriority::Default);
             DetailBuilder.EditCategory(TEXT("Comparison"), LOCTEXT("ComparisonCategory", "Before / After"), ECategoryPriority::Default);
+            // Keep the familiar controls together before the optional object groups.
+            const FName OrderedCategories[] = { TEXT("General"), TEXT("DLSS5PassCount"),
+                TEXT("Neural Controls"), TEXT("Global Controls"), TEXT("Color Preservation"),
+                TEXT("Comparison"), TEXT("Capture"), TEXT("Developer Masking"),
+                TEXT("Mask Group 1"), TEXT("Mask Group 2"), TEXT("Mask Group 3") };
+            for (int32 Index = 0; Index < UE_ARRAY_COUNT(OrderedCategories); ++Index)
+            {
+                FText Label = FText::FromName(OrderedCategories[Index]);
+                if (Index == 1) Label = LOCTEXT("PassCategory", "DLSS 5 Pass Count");
+                else if (Index == 3) Label = LOCTEXT("ArtCategory", "Global Controls (UE)");
+                else if (Index == 5) Label = LOCTEXT("ComparisonCategory", "Before / After");
+                DetailBuilder.EditCategory(OrderedCategories[Index], Label).SetSortOrder(Index);
+            }
         }
     };
 
@@ -235,7 +325,7 @@ void FDLSS5ForUE5EditorModule::RegisterMenus()
     const TSharedPtr<IPlugin> P4Plugin = IPluginManager::Get().FindPlugin(TEXT("UE5P4VUploadTool"));
     if (P4Plugin.IsValid() && P4Plugin->IsEnabled())
         ToolbarSection.InsertPosition = FToolMenuInsert(TEXT("P4VUpload"), EToolMenuInsertType::After);
-    // A text widget stays labelled D5 even when toolbar labels are hidden.
+    // Compact square badge, matching the neighboring P4 icon's toolbar size.
     ToolbarSection.AddEntry(FToolMenuEntry::InitWidget(
         TEXT("DLSS5ToolbarButton"),
         SNew(SButton)
@@ -244,9 +334,24 @@ void FDLSS5ForUE5EditorModule::RegisterMenus()
         .ToolTipText(LOCTEXT("D5Tooltip", "Open DLSS 5 controls"))
         .OnClicked_Lambda([this]() { OpenWindow(); return FReply::Handled(); })
         [
-            SNew(STextBlock)
-            .Text(LOCTEXT("D5Label", "D5"))
-            .Font(FAppStyle::GetFontStyle("BoldFont"))
+            SNew(SBox).WidthOverride(20.0f).HeightOverride(20.0f)
+            [
+                SNew(SBorder)
+                .BorderImage(FAppStyle::GetBrush("WhiteBrush"))
+                .BorderBackgroundColor(FLinearColor(FColor(24, 24, 24)))
+                .Padding(1.0f)
+                [
+                    SNew(SBorder)
+                    .BorderImage(FAppStyle::GetBrush("WhiteBrush"))
+                    .BorderBackgroundColor(FLinearColor(FColor(190, 190, 190)))
+                    .Padding(0.0f).HAlign(HAlign_Center).VAlign(VAlign_Center)
+                    [
+                        SNew(STextBlock).Text(LOCTEXT("D5Label", "D5"))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                        .ColorAndOpacity(FLinearColor::Black)
+                    ]
+                ]
+            ]
         ],
         LOCTEXT("D5ToolbarLabel", "D5")));
 }

@@ -45,6 +45,22 @@ UDLSS5NRSettings::UDLSS5NRSettings()
 
 void UDLSS5NRSettings::LoadFromCVars()
 {
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Art.Structure"))) GlobalStructure = V->GetFloat();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Art.Tone"))) GlobalTone = V->GetFloat();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Enable"))) bDeveloperMasking = V->GetInt() != 0;
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Preview"))) bShowDeveloperMasks = V->GetInt() != 0;
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group1.Enable"))) bMaskGroup1Enabled = V->GetInt() != 0;
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group1.Stencil"))) MaskGroup1Stencil = V->GetInt();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group1.Structure"))) MaskGroup1Structure = V->GetFloat();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group1.Tone"))) MaskGroup1Tone = V->GetFloat();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group2.Enable"))) bMaskGroup2Enabled = V->GetInt() != 0;
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group2.Stencil"))) MaskGroup2Stencil = V->GetInt();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group2.Structure"))) MaskGroup2Structure = V->GetFloat();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group2.Tone"))) MaskGroup2Tone = V->GetFloat();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group3.Enable"))) bMaskGroup3Enabled = V->GetInt() != 0;
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group3.Stencil"))) MaskGroup3Stencil = V->GetInt();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group3.Structure"))) MaskGroup3Structure = V->GetFloat();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Mask.Group3.Tone"))) MaskGroup3Tone = V->GetFloat();
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.ColorPreserve"))) ColorPreserve = V->GetFloat();
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.TonePreserve"))) TonePreserve = V->GetFloat();
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.NeuralDetail"))) NeuralDetail = V->GetFloat();
@@ -79,6 +95,23 @@ void UDLSS5NRSettings::LoadFromCVars()
 void UDLSS5NRSettings::ApplyToCVars(bool bStartup) const
 {
     const EConsoleVariableFlags Priority = bStartup ? ECVF_SetByProjectSetting : ECVF_SetByConsole;
+    SetFloatCVar(TEXT("r.DLSS5.Art.Structure"), FMath::Clamp(GlobalStructure, 0.0f, 1.0f), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.Art.Tone"), FMath::Clamp(GlobalTone, 0.0f, 1.0f), Priority);
+    SetIntCVar(TEXT("r.DLSS5.Mask.Enable"), bDeveloperMasking ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.Mask.Preview"), bShowDeveloperMasks ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.Mask.Group1.Enable"), bMaskGroup1Enabled ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.Mask.Group1.Stencil"), FMath::Clamp(MaskGroup1Stencil, 1, 255), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.Mask.Group1.Structure"), FMath::Clamp(MaskGroup1Structure, 0.0f, 1.0f), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.Mask.Group1.Tone"), FMath::Clamp(MaskGroup1Tone, 0.0f, 1.0f), Priority);
+    SetIntCVar(TEXT("r.DLSS5.Mask.Group2.Enable"), bMaskGroup2Enabled ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.Mask.Group2.Stencil"), FMath::Clamp(MaskGroup2Stencil, 1, 255), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.Mask.Group2.Structure"), FMath::Clamp(MaskGroup2Structure, 0.0f, 1.0f), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.Mask.Group2.Tone"), FMath::Clamp(MaskGroup2Tone, 0.0f, 1.0f), Priority);
+    SetIntCVar(TEXT("r.DLSS5.Mask.Group3.Enable"), bMaskGroup3Enabled ? 1 : 0, Priority);
+    SetIntCVar(TEXT("r.DLSS5.Mask.Group3.Stencil"), FMath::Clamp(MaskGroup3Stencil, 1, 255), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.Mask.Group3.Structure"), FMath::Clamp(MaskGroup3Structure, 0.0f, 1.0f), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.Mask.Group3.Tone"), FMath::Clamp(MaskGroup3Tone, 0.0f, 1.0f), Priority);
+    if (bDeveloperMasking) SetIntCVar(TEXT("r.CustomDepth"), 3, Priority);
     SetFloatCVar(TEXT("r.DLSS5.ColorPreserve"), FMath::Clamp(ColorPreserve, 0.0f, 1.0f), Priority);
     SetFloatCVar(TEXT("r.DLSS5.TonePreserve"), FMath::Clamp(TonePreserve, 0.0f, 1.0f), Priority);
     SetFloatCVar(TEXT("r.DLSS5.NeuralDetail"), FMath::Clamp(NeuralDetail, 0.0f, 2.0f), Priority);
@@ -113,7 +146,7 @@ void UDLSS5NRSettings::ApplyToCVars(bool bStartup) const
 void UDLSS5NRSettings::ResetToDefaults()
 {
     // Only the controls owned by this panel; do not touch other plugins or project settings.
-    const TCHAR* Names[] = { TEXT("Enable"), TEXT("Style"), TEXT("Preset"), TEXT("PassCount"),
+    const TCHAR* Names[] = { TEXT("Art.Structure"), TEXT("Art.Tone"), TEXT("Mask.Enable"), TEXT("Mask.Preview"), TEXT("Mask.Group1.Enable"), TEXT("Mask.Group1.Stencil"), TEXT("Mask.Group1.Structure"), TEXT("Mask.Group1.Tone"), TEXT("Mask.Group2.Enable"), TEXT("Mask.Group2.Stencil"), TEXT("Mask.Group2.Structure"), TEXT("Mask.Group2.Tone"), TEXT("Mask.Group3.Enable"), TEXT("Mask.Group3.Stencil"), TEXT("Mask.Group3.Structure"), TEXT("Mask.Group3.Tone"), TEXT("Enable"), TEXT("Style"), TEXT("Preset"), TEXT("PassCount"),
         TEXT("Intensity"), TEXT("LocalTone"), TEXT("LocalStructure"), TEXT("SkinStructure"),
         TEXT("AutoMask"), TEXT("UICorrection"), TEXT("EnableSceneGuides"), TEXT("FeedSceneGuides"),
         TEXT("UseDepth"), TEXT("UseMotionVectors"), TEXT("AutoResetHistory"), TEXT("DepthInverted"),
@@ -137,6 +170,22 @@ bool UDLSS5NRSettings::ResetPropertyToDefault(FName PropertyName)
     // The settings CDO is mutable (including after SaveConfig); it is not a
     // factory-default template. Never reset all CVars to obtain a single value.
     static const TPair<FName, const TCHAR*> Controls[] = {
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, GlobalStructure), TEXT("Art.Structure") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, GlobalTone), TEXT("Art.Tone") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bDeveloperMasking), TEXT("Mask.Enable") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bShowDeveloperMasks), TEXT("Mask.Preview") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bMaskGroup1Enabled), TEXT("Mask.Group1.Enable") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup1Stencil), TEXT("Mask.Group1.Stencil") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup1Structure), TEXT("Mask.Group1.Structure") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup1Tone), TEXT("Mask.Group1.Tone") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bMaskGroup2Enabled), TEXT("Mask.Group2.Enable") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup2Stencil), TEXT("Mask.Group2.Stencil") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup2Structure), TEXT("Mask.Group2.Structure") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup2Tone), TEXT("Mask.Group2.Tone") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bMaskGroup3Enabled), TEXT("Mask.Group3.Enable") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup3Stencil), TEXT("Mask.Group3.Stencil") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup3Structure), TEXT("Mask.Group3.Structure") },
+        { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, MaskGroup3Tone), TEXT("Mask.Group3.Tone") },
         { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bEnableNeuralRendering), TEXT("Enable") },
         { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Style), TEXT("Style") },
         { GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Preset), TEXT("Preset") },

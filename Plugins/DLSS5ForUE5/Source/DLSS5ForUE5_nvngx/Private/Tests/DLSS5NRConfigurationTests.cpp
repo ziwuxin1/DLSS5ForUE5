@@ -15,7 +15,7 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     UDLSS5NRSettings* Settings=NewObject<UDLSS5NRSettings>();
     struct FSaved { IConsoleVariable* V; FString Value; EConsoleVariableFlags Priority; };
     TArray<FSaved> Saved;
-    const TCHAR* Names[]={TEXT("Enable"),TEXT("Style"),TEXT("Preset"),TEXT("PassCount"),TEXT("Intensity"),
+    const TCHAR* Names[]={TEXT("Art.Structure"),TEXT("Art.Tone"),TEXT("Mask.Enable"),TEXT("Mask.Preview"),TEXT("Mask.Group1.Enable"),TEXT("Mask.Group1.Stencil"),TEXT("Mask.Group1.Structure"),TEXT("Mask.Group1.Tone"),TEXT("Mask.Group2.Enable"),TEXT("Mask.Group2.Stencil"),TEXT("Mask.Group2.Structure"),TEXT("Mask.Group2.Tone"),TEXT("Mask.Group3.Enable"),TEXT("Mask.Group3.Stencil"),TEXT("Mask.Group3.Structure"),TEXT("Mask.Group3.Tone"),TEXT("Enable"),TEXT("Style"),TEXT("Preset"),TEXT("PassCount"),TEXT("Intensity"),
         TEXT("LocalTone"),TEXT("LocalStructure"),TEXT("SkinStructure"),TEXT("AutoMask"),TEXT("UICorrection"),
         TEXT("EnableSceneGuides"),TEXT("FeedSceneGuides"),TEXT("UseDepth"),TEXT("UseMotionVectors"),
         TEXT("AutoResetHistory"),TEXT("DepthInverted"),TEXT("MVecScaleX"),TEXT("MVecScaleY"),TEXT("ExposureResetRatio"),TEXT("Debug"),TEXT("Watermark"),TEXT("Watermark.Corner"),TEXT("Watermark.Scale"),TEXT("Blend"),TEXT("Compare"),TEXT("Compare.Split"),TEXT("ColorPreserve"),TEXT("TonePreserve"),TEXT("NeuralDetail")};
@@ -34,7 +34,7 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
         }
         GetMutableDefault<UDLSS5NRSettings>()->LoadFromCVars();
     };
-    IConsoleVariable* Enable=Saved[0].V;
+    IConsoleVariable* Enable=IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Enable"));
     Enable->Set(1,ECVF_SetByConsole);
     Settings->LoadFromCVars();
     TestTrue(TEXT("Configured enable is mirrored, not forced off"),Settings->bEnableNeuralRendering);
@@ -88,6 +88,22 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     // mutated the CDO. Include booleans, enum, integer, float and custom slider.
     struct FResetCase { FName Property; const TCHAR* CVar; const TCHAR* Changed; };
     const FResetCase ResetCases[] = {
+        { TEXT("GlobalStructure"), TEXT("Art.Structure"), TEXT("0.3") },
+        { TEXT("GlobalTone"), TEXT("Art.Tone"), TEXT("0.3") },
+        { TEXT("bDeveloperMasking"), TEXT("Mask.Enable"), TEXT("1") },
+        { TEXT("bShowDeveloperMasks"), TEXT("Mask.Preview"), TEXT("1") },
+        { TEXT("bMaskGroup1Enabled"), TEXT("Mask.Group1.Enable"), TEXT("0") },
+        { TEXT("MaskGroup1Stencil"), TEXT("Mask.Group1.Stencil"), TEXT("220") },
+        { TEXT("MaskGroup1Structure"), TEXT("Mask.Group1.Structure"), TEXT("0.3") },
+        { TEXT("MaskGroup1Tone"), TEXT("Mask.Group1.Tone"), TEXT("0.3") },
+        { TEXT("bMaskGroup2Enabled"), TEXT("Mask.Group2.Enable"), TEXT("0") },
+        { TEXT("MaskGroup2Stencil"), TEXT("Mask.Group2.Stencil"), TEXT("220") },
+        { TEXT("MaskGroup2Structure"), TEXT("Mask.Group2.Structure"), TEXT("0.3") },
+        { TEXT("MaskGroup2Tone"), TEXT("Mask.Group2.Tone"), TEXT("0.3") },
+        { TEXT("bMaskGroup3Enabled"), TEXT("Mask.Group3.Enable"), TEXT("0") },
+        { TEXT("MaskGroup3Stencil"), TEXT("Mask.Group3.Stencil"), TEXT("220") },
+        { TEXT("MaskGroup3Structure"), TEXT("Mask.Group3.Structure"), TEXT("0.3") },
+        { TEXT("MaskGroup3Tone"), TEXT("Mask.Group3.Tone"), TEXT("0.3") },
         { TEXT("bEnableNeuralRendering"), TEXT("Enable"), TEXT("1") },
         { TEXT("Style"), TEXT("Style"), TEXT("1") },
         { TEXT("Preset"), TEXT("Preset"), TEXT("2") },

@@ -7,4 +7,5 @@ FRDGTextureRef CreateDLSS5NRStatusTexture(FRDGBuilder& GraphBuilder, uint32 Valu
 
 FScreenPassTexture AddDLSS5NRWatermarkPass(
     FRDGBuilder& GraphBuilder, const FSceneView& View, const FScreenPassTexture& Color,
-    FRDGTextureRef EvaluationStatus, int32 Corner, float Scale);
+    FRDGTextureRef EvaluationStatus, int32 Corner, float Scale, bool bEncodedSRGB = true,
+    bool bAfterOutputTransform = false);

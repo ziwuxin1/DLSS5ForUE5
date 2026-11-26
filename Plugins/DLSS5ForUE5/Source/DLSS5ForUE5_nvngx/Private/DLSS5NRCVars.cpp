@@ -7,6 +7,39 @@ static TAutoConsoleVariable<int32> CVarDLSS5NREnable(
     TEXT("Enable experimental DLSS Neural Rendering post-pass. 0=Off 1=On"),
     ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<float> CVarGlobalStructure(TEXT("r.DLSS5.Art.Structure"), 1.0f,
+    TEXT("UE frequency blend: 0 keeps source detail, 1 keeps neural detail. Independent of the runtime hint."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarGlobalTone(TEXT("r.DLSS5.Art.Tone"), 1.0f,
+    TEXT("UE frequency blend: 0 keeps source lighting and color base, 1 keeps the neural base."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<int32> CVarbDeveloperMasking(TEXT("r.DLSS5.Mask.Enable"), 0,
+    TEXT("Use UE Custom Depth Stencil groups. Enables stencil rendering for this session while active."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<int32> CVarbShowDeveloperMasks(TEXT("r.DLSS5.Mask.Preview"), 0,
+    TEXT("Preview group 1 red, 2 green, 3 blue. Included in captures: turn off before final output."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<int32> CVarbMaskGroup1Enabled(TEXT("r.DLSS5.Mask.Group1.Enable"), 1,
+    TEXT("Disabled groups follow the global intensities."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<int32> CVarMaskGroup1Stencil(TEXT("r.DLSS5.Mask.Group1.Stencil"), 201,
+    TEXT("Choose a distinct ID from 1 to 255. Shared with other project effects; the first enabled matching group wins."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarMaskGroup1Structure(TEXT("r.DLSS5.Mask.Group1.Structure"), 1.0f,
+    TEXT("Override global structure for visible objects in this group."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarMaskGroup1Tone(TEXT("r.DLSS5.Mask.Group1.Tone"), 1.0f,
+    TEXT("Override global tone for visible objects in this group. Set both intensities to zero to protect the original image."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<int32> CVarbMaskGroup2Enabled(TEXT("r.DLSS5.Mask.Group2.Enable"), 1,
+    TEXT("Disabled groups follow the global intensities."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<int32> CVarMaskGroup2Stencil(TEXT("r.DLSS5.Mask.Group2.Stencil"), 202,
+    TEXT("Choose a distinct ID from 1 to 255. Shared with other project effects; the first enabled matching group wins."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarMaskGroup2Structure(TEXT("r.DLSS5.Mask.Group2.Structure"), 1.0f,
+    TEXT("Override global structure for visible objects in this group."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarMaskGroup2Tone(TEXT("r.DLSS5.Mask.Group2.Tone"), 1.0f,
+    TEXT("Override global tone for visible objects in this group. Set both intensities to zero to protect the original image."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<int32> CVarbMaskGroup3Enabled(TEXT("r.DLSS5.Mask.Group3.Enable"), 1,
+    TEXT("Disabled groups follow the global intensities."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<int32> CVarMaskGroup3Stencil(TEXT("r.DLSS5.Mask.Group3.Stencil"), 203,
+    TEXT("Choose a distinct ID from 1 to 255. Shared with other project effects; the first enabled matching group wins."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarMaskGroup3Structure(TEXT("r.DLSS5.Mask.Group3.Structure"), 1.0f,
+    TEXT("Override global structure for visible objects in this group."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarMaskGroup3Tone(TEXT("r.DLSS5.Mask.Group3.Tone"), 1.0f,
+    TEXT("Override global tone for visible objects in this group. Set both intensities to zero to protect the original image."), ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<float> CVarColorPreserve(TEXT("r.DLSS5.ColorPreserve"), 0.0f,
     TEXT("Source-guided color preservation strength, 0 disables. SDR sRGB/tone-mapped linear MRQ only."), ECVF_RenderThreadSafe);
 static TAutoConsoleVariable<float> CVarTonePreserve(TEXT("r.DLSS5.TonePreserve"), 0.0f,
@@ -155,4 +188,19 @@ namespace DLSS5NR
     float GetMVecScaleY() { return CVarDLSS5NRMVecScaleY.GetValueOnRenderThread(); }
     float GetExposureResetRatio() { return CVarDLSS5NRExposureResetRatio.GetValueOnRenderThread(); }
     int32 GetDebug() { return CVarDLSS5NRDebug.GetValueOnRenderThread(); }
+}
+
+float DLSS5NR::GetArtStructure() { return FMath::Clamp(CVarGlobalStructure.GetValueOnAnyThread(), 0.f, 1.f); }
+float DLSS5NR::GetArtTone() { return FMath::Clamp(CVarGlobalTone.GetValueOnAnyThread(), 0.f, 1.f); }
+int32 DLSS5NR::GetDeveloperMasking() { return CVarbDeveloperMasking.GetValueOnAnyThread(); }
+int32 DLSS5NR::GetShowDeveloperMasks() { return CVarbShowDeveloperMasks.GetValueOnAnyThread(); }
+FVector4f DLSS5NR::GetMaskGroup(int32 Index)
+{
+    if (Index == 0) return FVector4f(CVarbMaskGroup1Enabled.GetValueOnAnyThread() ? FMath::Clamp(CVarMaskGroup1Stencil.GetValueOnAnyThread(), 1, 255) : -1,
+        FMath::Clamp(CVarMaskGroup1Structure.GetValueOnAnyThread(), 0.f, 1.f), FMath::Clamp(CVarMaskGroup1Tone.GetValueOnAnyThread(), 0.f, 1.f), 0);
+    if (Index == 1) return FVector4f(CVarbMaskGroup2Enabled.GetValueOnAnyThread() ? FMath::Clamp(CVarMaskGroup2Stencil.GetValueOnAnyThread(), 1, 255) : -1,
+        FMath::Clamp(CVarMaskGroup2Structure.GetValueOnAnyThread(), 0.f, 1.f), FMath::Clamp(CVarMaskGroup2Tone.GetValueOnAnyThread(), 0.f, 1.f), 0);
+    if (Index == 2) return FVector4f(CVarbMaskGroup3Enabled.GetValueOnAnyThread() ? FMath::Clamp(CVarMaskGroup3Stencil.GetValueOnAnyThread(), 1, 255) : -1,
+        FMath::Clamp(CVarMaskGroup3Structure.GetValueOnAnyThread(), 0.f, 1.f), FMath::Clamp(CVarMaskGroup3Tone.GetValueOnAnyThread(), 0.f, 1.f), 0);
+    return FVector4f(-1, 1, 1, 0);
 }

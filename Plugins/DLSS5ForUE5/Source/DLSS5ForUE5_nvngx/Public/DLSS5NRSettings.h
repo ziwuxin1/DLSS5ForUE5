@@ -78,6 +78,55 @@ public:
     UPROPERTY(EditAnywhere, Config, Category = "Capture", meta = (EditCondition = "bShowWatermark", ClampMin = "0.5", ClampMax = "4.0"))
     float WatermarkScale = 1.0f;
 
+    // UE-owned art direction; defaults retain the existing full neural output.
+    UPROPERTY(EditAnywhere, Config, Category = "Global Controls", meta = (DisplayName = "Structure Intensity", ToolTip = "UE frequency blend: 0 keeps source detail, 1 keeps neural detail. Independent of the runtime hint.", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+    float GlobalStructure = 1.0f;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Global Controls", meta = (DisplayName = "Tone Intensity", ToolTip = "UE frequency blend: 0 keeps source lighting and color base, 1 keeps the neural base.", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+    float GlobalTone = 1.0f;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Developer Masking", meta = (DisplayName = "Enable Object Masks", ToolTip = "Use UE Custom Depth Stencil groups. Enables stencil rendering for this session while active."))
+    bool bDeveloperMasking = false;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Developer Masking", meta = (DisplayName = "Show Masks", ToolTip = "Preview group 1 red, 2 green, 3 blue. Included in captures: turn off before final output.", EditCondition = "bDeveloperMasking"))
+    bool bShowDeveloperMasks = false;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 1", meta = (DisplayName = "Enable Group", ToolTip = "Disabled groups follow the global intensities.", EditCondition = "bDeveloperMasking"))
+    bool bMaskGroup1Enabled = true;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 1", meta = (DisplayName = "Stencil ID", ToolTip = "Choose a distinct ID from 1 to 255. Shared with other project effects; the first enabled matching group wins.", ClampMin = "1", ClampMax = "255", EditCondition = "bDeveloperMasking && bMaskGroup1Enabled"))
+    int32 MaskGroup1Stencil = 201;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 1", meta = (DisplayName = "Structure Intensity", ToolTip = "Override global structure for visible objects in this group.", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", EditCondition = "bDeveloperMasking && bMaskGroup1Enabled"))
+    float MaskGroup1Structure = 1.0f;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 1", meta = (DisplayName = "Tone Intensity", ToolTip = "Override global tone for visible objects in this group. Set both intensities to zero to protect the original image.", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", EditCondition = "bDeveloperMasking && bMaskGroup1Enabled"))
+    float MaskGroup1Tone = 1.0f;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 2", meta = (DisplayName = "Enable Group", ToolTip = "Disabled groups follow the global intensities.", EditCondition = "bDeveloperMasking"))
+    bool bMaskGroup2Enabled = true;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 2", meta = (DisplayName = "Stencil ID", ToolTip = "Choose a distinct ID from 1 to 255. Shared with other project effects; the first enabled matching group wins.", ClampMin = "1", ClampMax = "255", EditCondition = "bDeveloperMasking && bMaskGroup2Enabled"))
+    int32 MaskGroup2Stencil = 202;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 2", meta = (DisplayName = "Structure Intensity", ToolTip = "Override global structure for visible objects in this group.", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", EditCondition = "bDeveloperMasking && bMaskGroup2Enabled"))
+    float MaskGroup2Structure = 1.0f;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 2", meta = (DisplayName = "Tone Intensity", ToolTip = "Override global tone for visible objects in this group. Set both intensities to zero to protect the original image.", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", EditCondition = "bDeveloperMasking && bMaskGroup2Enabled"))
+    float MaskGroup2Tone = 1.0f;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 3", meta = (DisplayName = "Enable Group", ToolTip = "Disabled groups follow the global intensities.", EditCondition = "bDeveloperMasking"))
+    bool bMaskGroup3Enabled = true;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 3", meta = (DisplayName = "Stencil ID", ToolTip = "Choose a distinct ID from 1 to 255. Shared with other project effects; the first enabled matching group wins.", ClampMin = "1", ClampMax = "255", EditCondition = "bDeveloperMasking && bMaskGroup3Enabled"))
+    int32 MaskGroup3Stencil = 203;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 3", meta = (DisplayName = "Structure Intensity", ToolTip = "Override global structure for visible objects in this group.", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", EditCondition = "bDeveloperMasking && bMaskGroup3Enabled"))
+    float MaskGroup3Structure = 1.0f;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Mask Group 3", meta = (DisplayName = "Tone Intensity", ToolTip = "Override global tone for visible objects in this group. Set both intensities to zero to protect the original image.", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", EditCondition = "bDeveloperMasking && bMaskGroup3Enabled"))
+    float MaskGroup3Tone = 1.0f;
+
     // ---------------- Neural Controls ----------------
     UPROPERTY(EditAnywhere, Config, Category = "Neural Controls", meta = (ClampMin = "0.0", ClampMax = "2.0", UIMin = "0.0", UIMax = "2.0"))
     float Intensity = 1.0f;
@@ -97,7 +146,7 @@ public:
     UPROPERTY(EditAnywhere, Config, Category = "Neural Controls", meta = (DisplayName = "UI Correction"))
     bool bUICorrection = false;
 
-    UPROPERTY(EditAnywhere, Config, Category = "Color Preservation", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", DisplayName = "Original Color Preserve", ToolTip = "0 disables the filter. Higher values restore the source color base while retaining neural detail. Supports SDR sRGB and tone-mapped linear MRQ; Other output color spaces are bypassed."))
+    UPROPERTY(EditAnywhere, Config, Category = "Color Preservation", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", DisplayName = "Original Color Preserve", ToolTip = "0 disables color preservation; the separate structure/tone controls can still refine the image. Higher values restore the source color base while retaining neural detail. Supports SDR sRGB and tone-mapped linear MRQ; other output color spaces are bypassed."))
     float ColorPreserve = 0.0f;
 
     UPROPERTY(EditAnywhere, Config, Category = "Color Preservation", meta = (EditCondition = "ColorPreserve > 0", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", DisplayName = "Original Tone Preserve", ToolTip = "0 retains neural lightness; 1 restores the source lightness base. Scaled by Original Color Preserve."))

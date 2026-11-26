@@ -13,7 +13,7 @@ bool UDLSS5NRSettings::ExportPreset(const FString& Filename, FText& Error) const
     const TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
     const TSharedRef<FJsonObject> Values = MakeShared<FJsonObject>();
     Root->SetStringField(TEXT("format"), TEXT("DLSS5ForUE5.Preset"));
-    Root->SetNumberField(TEXT("version"), 1);
+    Root->SetNumberField(TEXT("version"), 2);
     Root->SetObjectField(TEXT("settings"), Values);
     FString Text;
     if (!FJsonObjectConverter::UStructToJsonObject(GetClass(), this, Values, CPF_Config, 0) ||
@@ -44,9 +44,45 @@ bool UDLSS5NRSettings::ImportPreset(const FString& Filename, FText& Error)
     double Version = 0;
     const TSharedPtr<FJsonObject>* Values = nullptr;
     if (!Root->TryGetStringField(TEXT("format"), Format) || Format != TEXT("DLSS5ForUE5.Preset") ||
-        !Root->TryGetNumberField(TEXT("version"), Version) || Version != 1 ||
+        !Root->TryGetNumberField(TEXT("version"), Version) || (Version != 1 && Version != 2) ||
         !Root->TryGetObjectField(TEXT("settings"), Values) || !Values || !Values->IsValid())
         return Reject(TEXT("This is not a supported DLSS5 preset."));
+
+    if (Version == 1)
+    {
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("GlobalStructure")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("GlobalStructure")), 1.0);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("GlobalTone")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("GlobalTone")), 1.0);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("bDeveloperMasking")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetBoolField(FJsonObjectConverter::StandardizeCase(TEXT("bDeveloperMasking")), false);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("bShowDeveloperMasks")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetBoolField(FJsonObjectConverter::StandardizeCase(TEXT("bShowDeveloperMasks")), false);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("bMaskGroup1Enabled")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetBoolField(FJsonObjectConverter::StandardizeCase(TEXT("bMaskGroup1Enabled")), true);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup1Stencil")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup1Stencil")), 201);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup1Structure")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup1Structure")), 1.0);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup1Tone")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup1Tone")), 1.0);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("bMaskGroup2Enabled")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetBoolField(FJsonObjectConverter::StandardizeCase(TEXT("bMaskGroup2Enabled")), true);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup2Stencil")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup2Stencil")), 202);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup2Structure")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup2Structure")), 1.0);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup2Tone")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup2Tone")), 1.0);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("bMaskGroup3Enabled")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetBoolField(FJsonObjectConverter::StandardizeCase(TEXT("bMaskGroup3Enabled")), true);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup3Stencil")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup3Stencil")), 203);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup3Structure")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup3Structure")), 1.0);
+        if ((*Values)->HasField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup3Tone")))) return Reject(TEXT("The version 1 preset contains version 2 fields."));
+        (*Values)->SetNumberField(FJsonObjectConverter::StandardizeCase(TEXT("MaskGroup3Tone")), 1.0);
+    }
 
     // Require the complete current schema, with correct JSON types. This prevents
     // a partial or malformed import from silently inheriting unrelated user values.
