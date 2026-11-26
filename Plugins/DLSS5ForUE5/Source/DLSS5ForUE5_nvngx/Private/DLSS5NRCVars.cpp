@@ -7,6 +7,13 @@ static TAutoConsoleVariable<int32> CVarDLSS5NREnable(
     TEXT("Enable experimental DLSS Neural Rendering post-pass. 0=Off 1=On"),
     ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<float> CVarColorPreserve(TEXT("r.DLSS5.ColorPreserve"), 0.0f,
+    TEXT("Source-guided color preservation strength, 0 disables. SDR sRGB/tone-mapped linear MRQ only."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarTonePreserve(TEXT("r.DLSS5.TonePreserve"), 0.0f,
+    TEXT("Source lightness-base preservation, scaled by ColorPreserve. 0..1."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarNeuralDetail(TEXT("r.DLSS5.NeuralDetail"), 1.0f,
+    TEXT("Neural residual detail gain, 0..2. Effective only with ColorPreserve > 0."), ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<float> CVarBlend(
     TEXT("r.DLSS5.Blend"), 1.0f,
     TEXT("UE final-image blend: 0=original, 1=full NR. Independent of runtime intensity hints."), ECVF_RenderThreadSafe);
@@ -116,6 +123,9 @@ static TAutoConsoleVariable<float> CVarHighlightEnd(TEXT("r.DLSS5.HighlightPrese
 
 namespace DLSS5NR
 {
+    float GetColorPreserve() { return FMath::Clamp(CVarColorPreserve.GetValueOnRenderThread(), 0.0f, 1.0f); }
+    float GetTonePreserve() { return FMath::Clamp(CVarTonePreserve.GetValueOnRenderThread(), 0.0f, 1.0f); }
+    float GetNeuralDetail() { return FMath::Clamp(CVarNeuralDetail.GetValueOnRenderThread(), 0.0f, 2.0f); }
     float GetBlend() { return FMath::Clamp(CVarBlend.GetValueOnRenderThread(), 0.0f, 1.0f); }
     int32 GetCompare() { return CVarCompare.GetValueOnRenderThread(); }
     float GetCompareSplit() { return FMath::Clamp(CVarCompareSplit.GetValueOnRenderThread(), 0.0f, 1.0f); }

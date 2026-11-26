@@ -45,6 +45,9 @@ UDLSS5NRSettings::UDLSS5NRSettings()
 
 void UDLSS5NRSettings::LoadFromCVars()
 {
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.ColorPreserve"))) ColorPreserve = V->GetFloat();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.TonePreserve"))) TonePreserve = V->GetFloat();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.NeuralDetail"))) NeuralDetail = V->GetFloat();
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Blend"))) EffectStrength = V->GetFloat();
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Compare"))) bCompare = V->GetInt() != 0;
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Compare.Split"))) SplitPosition = V->GetFloat();
@@ -76,6 +79,9 @@ void UDLSS5NRSettings::LoadFromCVars()
 void UDLSS5NRSettings::ApplyToCVars(bool bStartup) const
 {
     const EConsoleVariableFlags Priority = bStartup ? ECVF_SetByProjectSetting : ECVF_SetByConsole;
+    SetFloatCVar(TEXT("r.DLSS5.ColorPreserve"), FMath::Clamp(ColorPreserve, 0.0f, 1.0f), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.TonePreserve"), FMath::Clamp(TonePreserve, 0.0f, 1.0f), Priority);
+    SetFloatCVar(TEXT("r.DLSS5.NeuralDetail"), FMath::Clamp(NeuralDetail, 0.0f, 2.0f), Priority);
     SetFloatCVar(TEXT("r.DLSS5.Blend"), FMath::Clamp(EffectStrength, 0.0f, 1.0f), Priority);
     SetIntCVar(TEXT("r.DLSS5.Compare"), bCompare ? 1 : 0, Priority);
     SetFloatCVar(TEXT("r.DLSS5.Compare.Split"), FMath::Clamp(SplitPosition, 0.0f, 1.0f), Priority);
@@ -113,7 +119,8 @@ void UDLSS5NRSettings::ResetToDefaults()
         TEXT("UseDepth"), TEXT("UseMotionVectors"), TEXT("AutoResetHistory"), TEXT("DepthInverted"),
         TEXT("MVecScaleX"), TEXT("MVecScaleY"), TEXT("ExposureResetRatio"), TEXT("Debug"),
         TEXT("Watermark"), TEXT("Watermark.Corner"), TEXT("Watermark.Scale"),
-        TEXT("Blend"), TEXT("Compare"), TEXT("Compare.Split") };
+        TEXT("Blend"), TEXT("Compare"), TEXT("Compare.Split"),
+        TEXT("ColorPreserve"), TEXT("TonePreserve"), TEXT("NeuralDetail") };
     for (const TCHAR* Name : Names)
     {
         if (IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(

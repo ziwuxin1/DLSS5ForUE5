@@ -107,7 +107,9 @@ See [v0.6.1 release notes](RELEASE_NOTES_v0.6.1.md) and [contributor credits](CO
 - UE final-image **Effect Strength** blend and original/processed split comparison
 - Automatic per-project/user settings persistence and one-click **Reset Defaults**
 - Optional ON/OFF watermark in High Resolution Screenshots and 4K MRQ PNG/EXR sequences
-- Legacy runtime hints and experimental depth/motion guides remain available through CVars, hidden from the compact panel
+- Style, NR Preset, Intensity and Local Tone retained; structure/mask and experimental depth/motion controls hidden
+- Source-guided color / tone preservation and neural detail gain (optional; SDR and tone-mapped MRQ)
+- Save / load complete JSON effect presets, with validation before applying
 - Jitter, pre-exposure, camera-cut, and history-reset tracking
 - Automatic history reset
 - **1-4 sequential Neural Rendering passes**

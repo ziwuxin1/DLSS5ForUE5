@@ -59,7 +59,7 @@ r.DLSS5.PassCount 4
 | `r.DLSS5.Compare` | 0 | Original left / processed right, including captures. |
 | `r.DLSS5.Compare.Split` | 0.5 | Split fraction, 0 all processed / 1 all original. |
 
-These final-image controls work independently of opaque runtime hints such as `r.DLSS5.Intensity`. The compact editor panel hides those hints and experimental guide/debug controls; their CVars remain available. `Reset Defaults` restores all panel-owned controls and persists the result.
+These final-image controls work independently of opaque runtime hints such as `r.DLSS5.Intensity`. The editor panel retains Style, NR Preset, Intensity and Local Tone. Structure/mask and experimental guide/debug controls remain hidden; their CVars remain available. `Reset Defaults` restores all panel-owned controls and persists the result.
 
 | CVar | Default | Meaning |
 | --- | --- | --- |
@@ -70,3 +70,13 @@ These final-image controls work independently of opaque runtime hints such as `r
 See [UE 5.8.4 capture](UE584_CAPTURE.md) for HighResShot and 4K MRQ sequence setup.
 
 `DLSS5.SaveSettings` saves current control CVars for this project/user. UI changes save automatically. MRQ job overrides are not automatically persisted.
+
+## Source-guided color preservation
+
+| CVar | Default | Meaning |
+| --- | --- | --- |
+| `r.DLSS5.ColorPreserve` | 0 | 0..1 source-color base restoration; zero skips the filter entirely. |
+| `r.DLSS5.TonePreserve` | 0 | 0..1 source-lightness base restoration, scaled by ColorPreserve. |
+| `r.DLSS5.NeuralDetail` | 1 | 0..2 residual detail gain, scaled by ColorPreserve. |
+
+See [color preservation and presets](UE584_CAPTURE.md) for color-space limits and JSON preset exchange. These controls affect viewport, HighResShot and MRQ through the same GPU pass.

@@ -37,6 +37,9 @@ public:
     // Restore constructor defaults, not the mutable CDO or saved project values.
     void ResetToDefaults();
     void RefreshDiagnostics();
+    bool ExportPreset(const FString& Filename, FText& Error) const;
+    // Validates the complete file before changing this object; caller applies/saves on success.
+    bool ImportPreset(const FString& Filename, FText& Error);
 
     // ---------------- General ----------------
     UPROPERTY(EditAnywhere, Config, Category = "General", meta = (DisplayName = "Enable Neural Rendering"))
@@ -90,6 +93,15 @@ public:
 
     UPROPERTY(EditAnywhere, Config, Category = "Neural Controls", meta = (DisplayName = "UI Correction"))
     bool bUICorrection = false;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Color Preservation", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", DisplayName = "Original Color Preserve", ToolTip = "0 disables the filter. Higher values restore the source color base while retaining neural detail. Supports SDR sRGB and tone-mapped linear MRQ; Other output color spaces are bypassed."))
+    float ColorPreserve = 0.0f;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Color Preservation", meta = (EditCondition = "ColorPreserve > 0", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", DisplayName = "Original Tone Preserve", ToolTip = "0 retains neural lightness; 1 restores the source lightness base. Scaled by Original Color Preserve."))
+    float TonePreserve = 0.0f;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Color Preservation", meta = (EditCondition = "ColorPreserve > 0", ClampMin = "0.0", ClampMax = "2.0", UIMin = "0.0", UIMax = "2.0", DisplayName = "Neural Detail", ToolTip = "1 retains neural detail; lower values soften it, higher values emphasize it and may amplify noise. Scaled by Original Color Preserve."))
+    float NeuralDetail = 1.0f;
 
     // ---------------- Scene Guides ----------------
     UPROPERTY(EditAnywhere, Config, Category = "Scene Guides", meta = (DisplayName = "Enable 3D Scene Guides (Experimental)", ToolTip = "Master safety switch for depth and motion-vector guides. Off keeps the proven v0.3 color-only path. Defaults off. Configuration is respected; recovery can disable NR after an unclean NR-active session."))

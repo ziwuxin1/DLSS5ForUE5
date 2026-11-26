@@ -4,6 +4,9 @@
 
 namespace DLSS5NR
 {
+    float GetColorPreserve();
+    float GetTonePreserve();
+    float GetNeuralDetail();
     float GetBlend();
     int32 GetCompare();
     float GetCompareSplit();

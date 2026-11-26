@@ -18,7 +18,7 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     const TCHAR* Names[]={TEXT("Enable"),TEXT("Style"),TEXT("Preset"),TEXT("PassCount"),TEXT("Intensity"),
         TEXT("LocalTone"),TEXT("LocalStructure"),TEXT("SkinStructure"),TEXT("AutoMask"),TEXT("UICorrection"),
         TEXT("EnableSceneGuides"),TEXT("FeedSceneGuides"),TEXT("UseDepth"),TEXT("UseMotionVectors"),
-        TEXT("AutoResetHistory"),TEXT("DepthInverted"),TEXT("MVecScaleX"),TEXT("MVecScaleY"),TEXT("ExposureResetRatio"),TEXT("Debug"),TEXT("Watermark"),TEXT("Watermark.Corner"),TEXT("Watermark.Scale"),TEXT("Blend"),TEXT("Compare"),TEXT("Compare.Split")};
+        TEXT("AutoResetHistory"),TEXT("DepthInverted"),TEXT("MVecScaleX"),TEXT("MVecScaleY"),TEXT("ExposureResetRatio"),TEXT("Debug"),TEXT("Watermark"),TEXT("Watermark.Corner"),TEXT("Watermark.Scale"),TEXT("Blend"),TEXT("Compare"),TEXT("Compare.Split"),TEXT("ColorPreserve"),TEXT("TonePreserve"),TEXT("NeuralDetail")};
     for(const TCHAR* Name:Names)
     {
         IConsoleVariable* V=IConsoleManager::Get().FindConsoleVariable(*FString::Printf(TEXT("r.DLSS5.%s"),Name));
@@ -58,6 +58,8 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     Settings->bCompare = true;
     Settings->SplitPosition = 0.7f;
     Settings->PassCount = 3;
+    Settings->ColorPreserve = .9f; Settings->TonePreserve = .6f; Settings->NeuralDetail = 1.3f;
+    Settings->LocalTone = 1.7f; Settings->Preset = 2;
     Settings->Intensity = 0.65f;
     Settings->Style = EDLSS5NRStyle::Cinematic;
     Settings->SaveConfig(CPF_Config, *Ini);
@@ -66,6 +68,11 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     TestEqual(TEXT("Pass count survives disk reload"), Reloaded->PassCount, 3);
     TestEqual(TEXT("Style survives disk reload"), Reloaded->Style, EDLSS5NRStyle::Cinematic);
     TestEqual(TEXT("Intensity survives disk reload"), Reloaded->Intensity, 0.65f);
+    TestEqual(TEXT("Color preserve survives disk reload"), Reloaded->ColorPreserve, .9f);
+    TestEqual(TEXT("Tone preserve survives disk reload"), Reloaded->TonePreserve, .6f);
+    TestEqual(TEXT("Neural detail survives disk reload"), Reloaded->NeuralDetail, 1.3f);
+    TestEqual(TEXT("Local Tone survives disk reload"), Reloaded->LocalTone, 1.7f);
+    TestEqual(TEXT("NR Preset survives disk reload"), Reloaded->Preset, 2);
     TestTrue(TEXT("Watermark survives disk reload"), Reloaded->bShowWatermark);
     TestEqual(TEXT("Final-image strength survives disk reload"), Reloaded->EffectStrength, 0.35f);
     TestTrue(TEXT("Comparison toggle survives disk reload"), Reloaded->bCompare);
@@ -88,6 +95,8 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     TestEqual(TEXT("Reset restores hidden motion scale"), Reloaded->MotionScaleXMultiplier, 1.0f);
     TestEqual(TEXT("Reset uses factory pass count, not saved CDO"), Reloaded->PassCount, 1);
     TestEqual(TEXT("Reset restores full effect strength"), Reloaded->EffectStrength, 1.0f);
+    TestEqual(TEXT("Reset disables color filter"), Reloaded->ColorPreserve, 0.f);
+    TestEqual(TEXT("Reset restores neutral detail"), Reloaded->NeuralDetail, 1.f);
     TestFalse(TEXT("Reset disables comparison"), Reloaded->bCompare);
     TestFalse(TEXT("Reset disables watermark"), Reloaded->bShowWatermark);
     // UE 5.8 marks loose INI files opened by LoadConfig as NoSave. Unlike the real

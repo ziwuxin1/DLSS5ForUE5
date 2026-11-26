@@ -12,6 +12,12 @@
 #include "IDetailsView.h"
 #include "Interfaces/IPluginManager.h"
 #include "PropertyEditorModule.h"
+#include "DesktopPlatformModule.h"
+#include "IDesktopPlatform.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Misc/Paths.h"
+#include "Misc/MessageDialog.h"
+#include "HAL/FileManager.h"
 #include "Styling/AppStyle.h"
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -61,11 +67,12 @@ namespace
 
         virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
         {
-            // Keep runtime hints and unvalidated guide controls available to legacy configs/CVars,
-            // but do not advertise them as reliable artist controls.
-            DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Style));
-            DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, Preset));
-            DetailBuilder.HideCategory(TEXT("Neural Controls"));
+            // Retain the requested Style, Preset, Intensity and Local Tone controls.
+            // Hide only the remaining explicitly removed legacy/experimental controls.
+            DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, LocalStructure));
+            DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, SkinStructure));
+            DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bAutoMask));
+            DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, bUICorrection));
             DetailBuilder.HideCategory(TEXT("Scene Guides"));
             DetailBuilder.HideCategory(TEXT("Advanced"));
             DetailBuilder.EditCategory(TEXT("General"), LOCTEXT("GeneralCategory", "General"), ECategoryPriority::Important);
@@ -118,6 +125,8 @@ namespace
                 ]
             ];
 
+            DetailBuilder.EditCategory(TEXT("Neural Controls"), LOCTEXT("NeuralCategory", "Neural Controls"), ECategoryPriority::Default);
+            DetailBuilder.EditCategory(TEXT("Color Preservation"), LOCTEXT("ColorCategory", "Color Preservation"), ECategoryPriority::Default);
             DetailBuilder.EditCategory(TEXT("Comparison"), LOCTEXT("ComparisonCategory", "Before / After"), ECategoryPriority::Default);
         }
     };
@@ -278,6 +287,24 @@ TSharedRef<SDockTab> FDLSS5ForUE5EditorModule::SpawnPluginTab(const FSpawnTabArg
                 ]
             ]
             + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(12.0f, 0.0f, 12.0f, 8.0f)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().AutoWidth()
+                [
+                    SNew(SButton).Text(LOCTEXT("SavePreset", "Save Preset..."))
+                    .ToolTipText(LOCTEXT("SavePresetTip", "Save the current DLSS5 settings to a reusable preset file."))
+                    .OnClicked_Raw(this, &FDLSS5ForUE5EditorModule::SavePreset)
+                ]
+                + SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)
+                [
+                    SNew(SButton).Text(LOCTEXT("LoadPreset", "Load Preset..."))
+                    .ToolTipText(LOCTEXT("LoadPresetTip", "Load, apply and remember a saved DLSS5 preset for this project."))
+                    .OnClicked_Raw(this, &FDLSS5ForUE5EditorModule::LoadPreset)
+                ]
+            ]
+            + SVerticalBox::Slot()
             .FillHeight(1.0f)
             .Padding(8.0f, 0.0f, 8.0f, 6.0f)
             [
@@ -319,6 +346,54 @@ FReply FDLSS5ForUE5EditorModule::ResetDefaults()
         Settings->SaveUserSettings();
     }
     if (DetailsView.IsValid()) DetailsView->ForceRefresh();
+    return FReply::Handled();
+}
+
+FReply FDLSS5ForUE5EditorModule::SavePreset()
+{
+    static bool bDialogOpen = false;
+    if (bDialogOpen) return FReply::Handled();
+    TGuardValue<bool> DialogGuard(bDialogOpen, true);
+    IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
+    if (!Desktop) return FReply::Handled();
+    const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("DLSS5Presets"));
+    IFileManager::Get().MakeDirectory(*Folder, true);
+    TArray<FString> Files;
+    if (Desktop->SaveFileDialog(FSlateApplication::Get().FindBestParentWindowHandleForDialogs(DetailsView),
+        TEXT("Save DLSS5 Preset"), Folder, TEXT("DLSS5Preset.json"), TEXT("DLSS5 Preset (*.json)|*.json"), 0, Files) && Files.Num())
+    {
+        FString Filename = Files[0];
+        if (FPaths::GetExtension(Filename).IsEmpty()) Filename += TEXT(".json");
+        UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>();
+        Settings->LoadFromCVars();
+        FText Error;
+        if (!Settings->ExportPreset(Filename, Error)) FMessageDialog::Open(EAppMsgType::Ok, Error);
+    }
+    return FReply::Handled();
+}
+
+FReply FDLSS5ForUE5EditorModule::LoadPreset()
+{
+    static bool bDialogOpen = false;
+    if (bDialogOpen) return FReply::Handled();
+    TGuardValue<bool> DialogGuard(bDialogOpen, true);
+    IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
+    if (!Desktop) return FReply::Handled();
+    TArray<FString> Files;
+    if (Desktop->OpenFileDialog(FSlateApplication::Get().FindBestParentWindowHandleForDialogs(DetailsView),
+        TEXT("Load DLSS5 Preset"), FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("DLSS5Presets")),
+        TEXT(""), TEXT("DLSS5 Preset (*.json)|*.json"), 0, Files) && Files.Num())
+    {
+        UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>();
+        FText Error;
+        if (Settings->ImportPreset(Files[0], Error))
+        {
+            Settings->ApplyToCVars();
+            Settings->SaveUserSettings();
+            if (DetailsView.IsValid()) DetailsView->ForceRefresh();
+        }
+        else FMessageDialog::Open(EAppMsgType::Ok, Error);
+    }
     return FReply::Handled();
 }
 

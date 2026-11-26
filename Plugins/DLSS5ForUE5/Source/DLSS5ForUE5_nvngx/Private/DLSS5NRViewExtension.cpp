@@ -3,6 +3,8 @@
 #include "DLSS5ForUE5Module.h"
 #include "DLSS5NRCVars.h"
 #include "DLSS5NRMotionVectorPass.h"
+#include "DLSS5NRColorPreserve.h"
+#include "PostProcess/PostProcessTonemap.h"
 #include "DLSS5NRRuntime.h"
 #include "DLSS5NRWatermark.h"
 #include "HighResScreenshot.h"
@@ -162,7 +164,8 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
 #endif
     const bool bSupportedView = IsSupportedNRView(View);
     const bool bWatermark = bSupportedView && DLSS5NR::GetWatermark() != 0;
-    FRDGTextureRef EvaluationStatus = bWatermark ? CreateDLSS5NRStatusTexture(GraphBuilder, 0) : nullptr;
+    const bool bNeedStatus = bWatermark || DLSS5NR::GetColorPreserve() > 0.0f;
+    FRDGTextureRef EvaluationStatus = bNeedStatus ? CreateDLSS5NRStatusTexture(GraphBuilder, 0) : nullptr;
     const auto FinishOutput = [&](FScreenPassTexture Color)
     {
         if (bWatermark)
@@ -410,7 +413,7 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
     FRDGTextureRef CurrentPassInput = NRInput;
     FRDGTextureRef FinalNROutput = NRInput;
 
-    FRDGTextureRef SuccessValue = bWatermark ? CreateDLSS5NRStatusTexture(GraphBuilder, 1) : nullptr;
+    FRDGTextureRef SuccessValue = bNeedStatus ? CreateDLSS5NRStatusTexture(GraphBuilder, 1) : nullptr;
     for (int32 PassIndex = 0; PassIndex < Config.PassCount; ++PassIndex)
     {
         FRDGTextureRef PassOutput = GraphBuilder.CreateTexture(ProxyDesc, TEXT("DLSS5NR.PassOutputFP16"));
@@ -549,6 +552,28 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
 
         CurrentPassInput = PassOutput;
         FinalNROutput = PassOutput;
+    }
+
+    if (DLSS5NR::GetColorPreserve() > 0.0f)
+    {
+        const auto Device = GetTonemapperOutputDeviceParameters(*View.Family);
+        const bool bSRGB = Device.OutputDevice == uint32(EDisplayOutputFormat::SDR_sRGB);
+        const bool bLinear = Device.OutputDevice == uint32(EDisplayOutputFormat::HDR_LinearWithToneCurve);
+        const bool bSupported = (bSRGB || bLinear) && Device.OutputGamut == uint32(EDisplayColorGamut::sRGB_D65);
+        // An sRGB SRV is already decoded by hardware. All intermediate NR textures are FP16.
+        const bool bEncoded = bSRGB && !EnumHasAnyFlags(SceneColor.Texture->Desc.Flags, TexCreate_SRGB);
+        if (bSupported)
+            FinalNROutput = AddDLSS5NRColorPreservePass(GraphBuilder, View, SceneColor.Texture, FinalNROutput,
+                ColorRect, bEncoded, DLSS5NR::GetColorPreserve(), DLSS5NR::GetTonePreserve(), DLSS5NR::GetNeuralDetail(), EvaluationStatus);
+        // Only log transitions, not every frame. Also records the actual MRQ encoding for validation.
+        static uint64 LastColorMode = MAX_uint64;
+        const uint64 Mode = (uint64(Device.OutputDevice) << 32) | (uint64(Device.OutputGamut) << 8) | uint64(bEncoded);
+        if (LastColorMode != Mode)
+        {
+            UE_LOG(LogDLSS5, Display, TEXT("Source color preservation: %s, device=%u gamut=%u encodedSRGB=%d"),
+                bSupported ? TEXT("active") : TEXT("bypassed (unsupported output color space)"), Device.OutputDevice, Device.OutputGamut, bEncoded);
+            LastColorMode = Mode;
+        }
     }
 
     // NGX owns RGB only. Preserve UE's alpha exactly; MRQ's surface reader

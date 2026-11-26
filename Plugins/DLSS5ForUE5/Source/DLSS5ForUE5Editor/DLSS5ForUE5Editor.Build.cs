@@ -23,6 +23,7 @@ public class DLSS5ForUE5Editor : ModuleRules
             "ToolMenus",
             "PropertyEditor",
             "Projects",
+            "DesktopPlatform",
             "LevelEditor"
         });
     }
