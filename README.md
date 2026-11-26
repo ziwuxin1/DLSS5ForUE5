@@ -1,6 +1,6 @@
 # DLSS5ForUE5
 
-> **ziwuxin1 fork — UE 5.8.4 capture work:** High Resolution Screenshot handling, optional DLSS5 ON/OFF image watermark, MRQ job controls, a 4K PNG/EXR preset script, automatic settings persistence, per-control reset, and UE-side structure/tone controls with three object-mask groups. See [capture setup and scope](docs/UE584_CAPTURE.md). The v0.6.1 release information below describes the upstream baseline.
+> **MAXs Education DLSS 5 For UE5 v1.0.3 — UE 5.8.4:** High Resolution Screenshot handling, optional DLSS5 ON/OFF image watermark, MRQ job controls, a 4K PNG/EXR preset script, automatic settings persistence, per-control reset, and UE-side structure/tone controls with three object-mask groups. See [capture setup and scope](docs/UE584_CAPTURE.md). The v0.6.1 release information below describes the upstream baseline.
 
 [![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.5%E2%80%935.8-313131?style=flat-square&logo=unrealengine&logoColor=white)](docs/INSTALLATION.md)
 [![Windows Editor](https://img.shields.io/badge/Windows-Editor%20Win64-0078D4?style=flat-square&logo=windows&logoColor=white)](docs/INSTALLATION.md)
@@ -87,7 +87,7 @@ The maintained source baseline is **v0.6.1**. The plugin provides experimental N
 | UE 5.7 | Rebuilt successfully; fresh maintainer viewport/MRQ confirmation pending |
 | UE 5.8 | Rebuilt; maintainer-confirmed Neural Rendering in viewport and MRQ |
 
-The plugin descriptor remains **0.6.1 Validation Build** to match the verified precompiled packages.
+The MAXs Education fork is **v1.0.3**. Its UE 5.8.4 build is validated separately in [the fork validation record](docs/VALIDATION_UE584.md); the v0.6.1 packages and checksums below remain historical upstream artifacts.
 
 **Packaged Development and Shipping native Neural Rendering remain unsupported.** Earlier packaged runtime experiments failed NGX initialization (`NVSDK_NGX_D3D12_Init_Ext`, `0xBAD00002`) with no successful native NR evaluations. Editor/MRQ success is not evidence of packaged-game NR functionality.
 

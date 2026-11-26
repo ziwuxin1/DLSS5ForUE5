@@ -12,12 +12,12 @@ enum class EDLSS5NRStyle : uint8
 };
 
 /**
- * Artist-facing settings model for DLSS 5 for UE5.
+ * Artist-facing settings model for MAXs Education DLSS 5 For UE5.
  *
  * The render thread still consumes console variables internally because they are cheap and
  * thread-safe. The dedicated editor window edits this config object and synchronizes the render-thread CVars.
  */
-UCLASS(Config = Engine, DefaultConfig, meta = (DisplayName = "DLSS 5 for UE5"))
+UCLASS(Config = Engine, DefaultConfig, meta = (DisplayName = "MAXs Education DLSS 5 For UE5"))
 class DLSS5FORUE5_NVNGX_API UDLSS5NRSettings : public UObject
 {
     GENERATED_BODY()
@@ -39,6 +39,8 @@ public:
     // Reset only this control using the registered CVar's immutable factory value.
     // Does not save; the editor calls SaveUserSettings after a successful reset.
     bool ResetPropertyToDefault(FName PropertyName);
+    // True only when this control differs from the registered factory value.
+    bool CanResetPropertyToDefault(FName PropertyName) const;
     void RefreshDiagnostics();
     bool ExportPreset(const FString& Filename, FText& Error) const;
     // Validates the complete file before changing this object; caller applies/saves on success.

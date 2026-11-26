@@ -75,6 +75,7 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     TestEqual(TEXT("NR Preset survives disk reload"), Reloaded->Preset, 2);
     TestTrue(TEXT("Watermark survives disk reload"), Reloaded->bShowWatermark);
     TestEqual(TEXT("Final-image strength survives disk reload"), Reloaded->EffectStrength, 0.35f);
+    TestTrue(TEXT("Saved value still differs from factory despite mutable CDO"), Reloaded->CanResetPropertyToDefault(TEXT("EffectStrength")));
     TestTrue(TEXT("Comparison toggle survives disk reload"), Reloaded->bCompare);
     TestEqual(TEXT("Comparison position survives disk reload"), Reloaded->SplitPosition, 0.7f);
     IConsoleVariable* Passes = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.PassCount"));
@@ -123,16 +124,23 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     for (const auto& Case : ResetCases)
     {
         IConsoleVariable* Target = IConsoleManager::Get().FindConsoleVariable(*FString::Printf(TEXT("r.DLSS5.%s"), Case.CVar));
+        Target->Set(*Target->GetDefaultValue(), ECVF_SetByConsole);
+        Reloaded->LoadFromCVars();
+        TestFalse(TEXT("Factory value hides its reset arrow"), Reloaded->CanResetPropertyToDefault(Case.Property));
         Target->Set(Case.Changed, ECVF_SetByConsole);
+        Reloaded->LoadFromCVars();
+        TestTrue(TEXT("Changed value shows its reset arrow"), Reloaded->CanResetPropertyToDefault(Case.Property));
         TArray<FString> Before;
         for (const auto& Entry : Saved) Before.Add(Entry.V->GetString());
         TestTrue(*Case.Property.ToString(), Reloaded->ResetPropertyToDefault(Case.Property));
         TestEqual(TEXT("Single reset uses factory value"), Target->GetFloat(), FCString::Atof(*Target->GetDefaultValue()));
+        TestFalse(TEXT("Reset hides the arrow again"), Reloaded->CanResetPropertyToDefault(Case.Property));
         for (int32 Index = 0; Index < Saved.Num(); ++Index)
             if (Saved[Index].V != Target)
                 TestEqual(TEXT("Single reset leaves every other CVar unchanged"), Saved[Index].V->GetString(), Before[Index]);
     }
     TestFalse(TEXT("Unknown property cannot reset settings"), Reloaded->ResetPropertyToDefault(TEXT("NotAControl")));
+    TestFalse(TEXT("Unknown property has no reset arrow"), Reloaded->CanResetPropertyToDefault(TEXT("NotAControl")));
     Reloaded->Intensity = .65f; Reloaded->LocalTone = 1.7f; Reloaded->ApplyToCVars();
     Reloaded->ResetPropertyToDefault(GET_MEMBER_NAME_CHECKED(UDLSS5NRSettings, LocalTone));
     GConfig->UnloadFile(Ini);
@@ -155,6 +163,10 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     TestEqual(TEXT("Reset restores neutral detail"), Reloaded->NeuralDetail, 1.f);
     TestFalse(TEXT("Reset disables comparison"), Reloaded->bCompare);
     TestFalse(TEXT("Reset disables watermark"), Reloaded->bShowWatermark);
+    Reloaded->EffectStrength = 0.488f;
+    TestTrue(TEXT("Arrow follows displayed value even before CVar synchronization"), Reloaded->CanResetPropertyToDefault(TEXT("EffectStrength")));
+    Reloaded->EffectStrength = 1.0f;
+    TestFalse(TEXT("Displayed default hides arrow without changing CVars"), Reloaded->CanResetPropertyToDefault(TEXT("EffectStrength")));
     // UE 5.8 marks loose INI files opened by LoadConfig as NoSave. Unlike the real
     // EditorPerProjectUserSettings hierarchy, this standalone test file must be
     // unloaded before SaveConfig creates a writable temporary branch again.

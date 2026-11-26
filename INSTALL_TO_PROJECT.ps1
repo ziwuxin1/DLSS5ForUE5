@@ -79,5 +79,5 @@ foreach ($Legacy in $LegacyFolders) {
 $Version = (Get-Content -LiteralPath (Join-Path $Dest "$FolderName.uplugin") -Raw | ConvertFrom-Json).VersionName
 Write-Host "Installed $FolderName $Version to: $Dest"
 Write-Host 'This is a source installation. Compile for your UE version and supply any required runtime under its applicable license.'
-Write-Host 'Plugin UI: Tools > DLSS 5 for UE5'
+Write-Host 'Plugin UI: Tools > MAXs Education DLSS 5 For UE5'
 Write-Host 'Console diagnostics: DLSS5.Status'

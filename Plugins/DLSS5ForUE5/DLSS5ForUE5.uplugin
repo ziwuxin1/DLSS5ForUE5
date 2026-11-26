@@ -1,9 +1,9 @@
 {
     "FileVersion": 3,
-    "Version": 601,
-    "VersionName": "0.6.1 UE5.8.4 Capture",
-    "FriendlyName": "DLSS 5 for UE5",
-    "Description": "Unofficial UE5 D3D12 integration for NVIDIA DLSS 3D-Guided Neural Rendering. Dedicated editor UI, scene guides, isolated temporal history per view/pass, GPU-safe feature lifetime handling, 1-4 sequential Neural Rendering passes, diagnostics, and safe-mode recovery. Fork additions: high-resolution capture, ON/OFF watermark, MRQ 4K sequences and automatic settings persistence.",
+    "Version": 10003,
+    "VersionName": "1.0.3",
+    "FriendlyName": "MAXs Education DLSS 5 For UE5",
+    "Description": "Unofficial NVIDIA Neural Rendering integration for Unreal Engine. MAXs Education controls, per-setting reset, automatic configuration saving, structure and tone controls, three object-mask groups, high-resolution screenshots, ON/OFF watermark and 4K Movie Render Queue sequences. Built for UE 5.8.4.",
     "Category": "Rendering",
     "CreatedBy": "Praveen Kumar",
     "CanContainContent": false,

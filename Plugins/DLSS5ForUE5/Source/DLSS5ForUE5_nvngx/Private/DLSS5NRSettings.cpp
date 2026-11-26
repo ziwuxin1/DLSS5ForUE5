@@ -3,6 +3,7 @@
 #include "DLSS5NRRuntime.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/ConfigCacheIni.h"
+#include "UObject/UnrealType.h"
 
 #define LOCTEXT_NAMESPACE "DLSS5NRSettings"
 
@@ -165,7 +166,7 @@ void UDLSS5NRSettings::ResetToDefaults()
     LoadFromCVars();
 }
 
-bool UDLSS5NRSettings::ResetPropertyToDefault(FName PropertyName)
+static IConsoleVariable* FindResetVariable(FName PropertyName)
 {
     // The settings CDO is mutable (including after SaveConfig); it is not a
     // factory-default template. Never reset all CVars to obtain a single value.
@@ -205,9 +206,39 @@ bool UDLSS5NRSettings::ResetPropertyToDefault(FName PropertyName)
     for (const auto& Control : Controls)
     {
         if (Control.Key != PropertyName) continue;
-        IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(
+        return IConsoleManager::Get().FindConsoleVariable(
             *FString::Printf(TEXT("r.DLSS5.%s"), Control.Value));
-        if (!Variable) return false;
+    }
+    return nullptr;
+}
+
+bool UDLSS5NRSettings::CanResetPropertyToDefault(FName PropertyName) const
+{
+    IConsoleVariable* Variable = FindResetVariable(PropertyName);
+    const FProperty* Property = GetClass()->FindPropertyByName(PropertyName);
+    if (!Variable || !Property) return false;
+
+    // Compare the displayed value with the same immutable default used by reset.
+    // Saved config mutates the CDO, and console overrides may differ from this object.
+    const FString DefaultValue = Variable->GetDefaultValue();
+    const void* Value = Property->ContainerPtrToValuePtr<void>(this);
+    if (const FBoolProperty* Bool = CastField<FBoolProperty>(Property))
+        return Bool->GetPropertyValue(Value) != (FCString::Atoi(*DefaultValue) != 0);
+    if (const FEnumProperty* Enum = CastField<FEnumProperty>(Property))
+        return Enum->GetUnderlyingProperty()->GetSignedIntPropertyValue(Value) != FCString::Atoi64(*DefaultValue);
+    if (const FNumericProperty* Number = CastField<FNumericProperty>(Property))
+    {
+        if (Number->IsFloatingPoint())
+            return !FMath::IsNearlyEqual(static_cast<float>(Number->GetFloatingPointPropertyValue(Value)), FCString::Atof(*DefaultValue), SMALL_NUMBER);
+        return Number->GetSignedIntPropertyValue(Value) != FCString::Atoi64(*DefaultValue);
+    }
+    return false;
+}
+
+bool UDLSS5NRSettings::ResetPropertyToDefault(FName PropertyName)
+{
+    if (IConsoleVariable* Variable = FindResetVariable(PropertyName))
+    {
         Variable->Set(*Variable->GetDefaultValue(), ECVF_SetByConsole);
         LoadFromCVars();
         return true;

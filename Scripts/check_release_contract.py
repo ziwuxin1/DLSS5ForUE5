@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check documented v0.6.1 release metadata against tracked plugin source.
+"""Check current MAXs fork metadata and historical v0.6.1 release records.
 
 Static repository validation only: does not compile Unreal Engine, verify GPU
 inference, verify uploaded binary hashes, or grant third-party distribution rights.
@@ -33,8 +33,10 @@ def read(path: Path) -> str:
 descriptor = json.loads(read(PLUGIN / "DLSS5ForUE5.uplugin"))
 version = descriptor.get("Version")
 name = descriptor.get("VersionName", "")
-check(version == 601, "Expected plugin Version 601 for v0.6.1.")
-check(name.startswith("0.6.1"), "VersionName must match the release.")
+check(version == 10003, "Expected plugin Version 10003 for v1.0.3.")
+check(name == "1.0.3", "VersionName must match the current fork release.")
+check(descriptor.get("FriendlyName") == "MAXs Education DLSS 5 For UE5", "Fork display name mismatch.")
+check((PLUGIN / "Resources/Icon128.png").is_file(), "MAXs plugin icon missing.")
 for module in descriptor.get("Modules", []):
     module_name = module.get("Name", "")
     check(bool(module_name and (PLUGIN / "Source" / module_name).is_dir()),
@@ -49,7 +51,8 @@ third_party = read(ROOT / "THIRD_PARTY_NOTICES.md")
 # Release identity and upstream notices remain in the descriptor and documentation.
 check("# DLSS5ForUE5" in readme and "v0.6.1" in readme, "README release identity missing.")
 check(notes.startswith("# DLSS5ForUE5 v0.6.1"), "Release notes title/version mismatch.")
-check("## v0.6.1" in changelog, "Changelog missing current release.")
+check("## v1.0.3" in changelog and "v1.0.3" in readme, "Current fork version missing from docs.")
+check("## v0.6.1" in changelog, "Changelog missing historical upstream release.")
 check("THIRD_PARTY_NOTICES.md" in readme, "README missing third-party reference.")
 check("community compatibility" in third_party.lower(), "NR runtime provenance missing.")
 
@@ -99,5 +102,5 @@ if ERRORS:
     print(f"Release contract failed: {len(ERRORS)} finding(s).", file=sys.stderr)
     raise SystemExit(1)
 
-print(f"Release contract OK: v0.6.1, {len(registered)} CVars, "
+print(f"Release contract OK: fork v1.0.3 / upstream v0.6.1, {len(registered)} CVars, "
       "all referenced screenshots and four engine ZIP records.")

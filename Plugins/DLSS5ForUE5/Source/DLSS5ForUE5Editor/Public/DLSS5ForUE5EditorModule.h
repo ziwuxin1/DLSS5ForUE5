@@ -18,7 +18,6 @@ private:
     void RegisterMenus();
     void OpenWindow();
     TSharedRef<SDockTab> SpawnPluginTab(const FSpawnTabArgs& Args);
-    FReply EnterSafeMode();
     FReply ResetDefaults();
     FReply SavePreset();
     FReply LoadPreset();

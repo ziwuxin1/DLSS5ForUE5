@@ -44,13 +44,13 @@ The panel retains **Style**, **NR Preset**, **Intensity**, **Local Tone**, NR en
 
 **Reset Defaults** restores and saves all panel-owned values, including hidden legacy settings. NR, comparison, watermark and experimental guides return to off; strength returns to 1 and pass count to 1. It does not change the scene or settings owned by other plugins.
 
-Each of the 31 visible controls, including the custom **Passes** slider, also has an always-visible reset arrow on its right. It restores just that control to its factory value, applies it immediately and saves it for the next launch; other controls stay unchanged. Dependent controls follow UE's edit conditions: enable their parent option before editing or resetting them. The reset uses the registered CVar default, because saved settings mutate the settings CDO and cannot serve as factory defaults.
+Each of the 31 visible controls, including the custom **Passes** slider, shows a reset arrow on its right only when its value differs from the factory default. The arrow disappears after reset. It restores just that control to its factory value, applies it immediately and saves it for the next launch; other controls stay unchanged. Dependent controls follow UE's edit conditions: enable their parent option before editing or resetting them. The reset uses the registered CVar default, because saved settings mutate the settings CDO and cannot serve as factory defaults.
 
 Local Structure, Skin Structure, Automatic Mask, UI Correction, and experimental Scene Guides/Advanced controls are hidden from the panel. The requested Style, NR Preset, Intensity and Local Tone remain visible and retain their original runtime mappings; their visible effect depends on the supplied closed runtime and scene. Their existing CVars/config keys remain available for compatibility and investigation. The diagnostics/About/social/version footer is removed; use `DLSS5.Status` for diagnostics. Earlier documentation images show the upstream UI rather than this compact fork panel.
 
 Changes made in the plugin window, including the custom Pass Count slider, are automatically saved under the project's `Saved/Config/WindowsEditor/EditorPerProjectUserSettings.ini`. Shared `Config/DefaultEngine.ini` files do not need to be checked out in Perforce. The next editor launch restores these settings before rendering starts.
 
-Explicit console/startup overrides retain their priority. Crash recovery may still temporarily disable NR after an unclean NR-active session; that recovery does not erase saved settings. The UI Safe Mode button saves its safe choices, while the `DLSS5.SafeMode` console command remains session-only. To persist changes made through CVars, run `DLSS5.SaveSettings`.
+Explicit console/startup overrides retain their priority. Crash recovery may still temporarily disable NR after an unclean NR-active session; that recovery does not erase saved settings. The panel has no Safe Mode button. The diagnostic `DLSS5.SafeMode` console command remains session-only. To persist changes made through CVars, run `DLSS5.SaveSettings`.
 
 ## Editor build packaging
 

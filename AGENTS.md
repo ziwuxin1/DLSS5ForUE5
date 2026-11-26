@@ -4,7 +4,7 @@ Review this unofficial Unreal Engine plugin for correctness and severe regressio
 
 ## Release baseline
 
-- The maintained source baseline is **v0.6.1** (`Version: 601`, `VersionName: 0.6.1 Validation Build`), synchronized from the maintainer's verified source export on 2026-10-27. Keep source and public documentation aligned with that version. Do not change validated functionality without explicit authorization.
+- The upstream source baseline is **v0.6.1**, synchronized from the maintainer's verified source export on 2026-10-27. The user-requested MAXs Education fork starts at **v1.0.3** (`Version: 10003`, `VersionName: 1.0.3`). Keep the descriptor and current fork documentation aligned; retain upstream v0.6.1 release notes/checksums as history. Do not change validated functionality without explicit authorization.
 - Historical v0.5.6 and v0.6.0 release notes remain historical. UE 5.6 and UE 5.8 viewport/MRQ behavior was maintainer-confirmed; UE 5.5 and UE 5.7 were rebuilt, but fresh runtime acceptance has not been asserted.
 - Stable baseline describes the maintained editor release; it does not establish packaged native NR support or independently verified runtime stability on every engine version.
 

@@ -95,3 +95,11 @@ The earlier limitations still apply. Color refinement is an optional additional 
 - Three additional native 4K MRQ jobs with preset 2 completed and each editor process exited with code 0. An earlier acceptance harness called `quit_editor()` from its async callback while the `-ExecutePythonScript` notification was alive. This bypassed `FEditorPythonExecuter::DestroyNotification` and caused intermittent late Slate teardown faults after successful output. The corrected harness clears `set_keep_python_script_alive(False)` and lets UE's script runner clean up and defer exit. The speculative runtime/UI teardown changes were removed; these are test-harness results, not a claimed NVIDIA-runtime shutdown fix.
 
 The previous HDR/OCIO, packaged-native, tiled MRQ and long-render limitations remain. Local build ZIPs exclude the NVIDIA runtime.
+
+## MAXs Education v1.0.3 UI follow-up (2026-11-26)
+
+- UE 5.8.4 Development Editor build succeeded. Descriptor version is 1.0.3, display name is MAXs Education DLSS 5 For UE5, and the plugin-list icon uses the MAXs Education artwork. The toolbar remains D5.
+- Removed the Safe Mode panel button. The tab label is MAXs Education DLSS 5, left-aligned without an unused icon reservation; it fits at the default tab width. The panel header retains the full plugin name.
+- ConfigurationAndRecovery and PresetRoundTripAndValidation passed. The configuration regression covers default/changed/reset visibility for all 31 controls, including enum, bool, integer, float and Passes, plus saved-CDO and unsynchronized-object cases.
+- Live UI verification: default values had no reset arrows; Effect Strength 0.488 displayed its arrow; clicking it restored 1.0 and hid the arrow. The final UI verification exited normally. These checks used a separate validation project and did not reset personal Lighting settings.
+- Rendering code and shaders were unchanged in this follow-up. The preceding r6 capture evidence and its limitations still apply; this UI revision did not rerun native 4K rendering tests.

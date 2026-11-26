@@ -23,6 +23,7 @@
 #include "Styling/AppStyle.h"
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Layout/SBorder.h"
@@ -39,6 +40,18 @@
 namespace
 {
     const FName DLSS5ForUE5TabName(TEXT("DLSS5ForUE5"));
+
+    class SMaxsDLSS5DockTab final : public SDockTab
+    {
+    public:
+        void Construct(const SDockTab::FArguments& InArgs)
+        {
+            SDockTab::Construct(InArgs);
+            // This tab has no icon; remove its reserved width so the brand fits.
+            IconWidget->SetVisibility(EVisibility::Collapsed);
+            LabelWidget->SetJustification(ETextJustify::Left);
+        }
+    };
 
     void AssignSelectedToMaskGroup(int32 Group)
     {
@@ -107,9 +120,11 @@ namespace
             const TWeakPtr<IPropertyUtilities> Utilities = DetailBuilder.GetPropertyUtilities();
             const auto MakeReset = [Utilities](FName PropertyName)
             {
-                // Always show the familiar UE reset arrow, even when already at
-                // default. The regular CDO-based comparison cannot work here.
-                return FResetToDefaultOverride::Create(FSimpleDelegate::CreateLambda([Utilities, PropertyName]()
+                // Match UE's changed-only reset affordance without comparing to the mutable CDO.
+                return FResetToDefaultOverride::Create(TAttribute<bool>::CreateLambda([PropertyName]()
+                {
+                    return GetDefault<UDLSS5NRSettings>()->CanResetPropertyToDefault(PropertyName);
+                }), FSimpleDelegate::CreateLambda([Utilities, PropertyName]()
                 {
                     UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>();
                     if (Settings->ResetPropertyToDefault(PropertyName))
@@ -267,7 +282,7 @@ namespace
 
     FAutoConsoleCommand GDLSS5OpenWindowCommand(
         TEXT("DLSS5.Open"),
-        TEXT("Open the DLSS 5 for UE5 control window."),
+        TEXT("Open the MAXs Education DLSS 5 For UE5 control window."),
         FConsoleCommandDelegate::CreateStatic(&OpenDLSS5WindowFromConsole));
 }
 
@@ -282,8 +297,8 @@ void FDLSS5ForUE5EditorModule::StartupModule()
     FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
         DLSS5ForUE5TabName,
         FOnSpawnTab::CreateRaw(this, &FDLSS5ForUE5EditorModule::SpawnPluginTab))
-        .SetDisplayName(LOCTEXT("TabTitle", "DLSS 5 for UE5"))
-        .SetTooltipText(LOCTEXT("TabTooltip", "Open DLSS 5 for UE5 controls."))
+        .SetDisplayName(LOCTEXT("TabTitle", "MAXs Education DLSS 5"))
+        .SetTooltipText(LOCTEXT("TabTooltip", "Open MAXs Education DLSS 5 For UE5 controls."))
         .SetMenuType(ETabSpawnerMenuType::Hidden);
 
     UToolMenus::RegisterStartupCallback(
@@ -314,7 +329,7 @@ void FDLSS5ForUE5EditorModule::RegisterMenus()
     FToolMenuSection& Section = ToolsMenu->FindOrAddSection(TEXT("DLSS5ForUE5"));
     Section.AddMenuEntry(
         TEXT("OpenDLSS5ForUE5"),
-        LOCTEXT("OpenWindow", "DLSS 5 for UE5"),
+        LOCTEXT("OpenWindow", "MAXs Education DLSS 5 For UE5"),
         LOCTEXT("OpenWindowTooltip", "Open Neural Rendering controls."),
         FSlateIcon(),
         FUIAction(FExecuteAction::CreateRaw(this, &FDLSS5ForUE5EditorModule::OpenWindow)));
@@ -381,7 +396,7 @@ TSharedRef<SDockTab> FDLSS5ForUE5EditorModule::SpawnPluginTab(const FSpawnTabArg
         DetailsView->SetObject(Settings);
     }
 
-    return SNew(SDockTab)
+    return SNew(SMaxsDLSS5DockTab)
         .TabRole(ETabRole::NomadTab)
         [
             SNew(SVerticalBox)
@@ -399,7 +414,7 @@ TSharedRef<SDockTab> FDLSS5ForUE5EditorModule::SpawnPluginTab(const FSpawnTabArg
                     .AutoHeight()
                     [
                         SNew(STextBlock)
-                        .Text(LOCTEXT("Header", "DLSS 5 for UE5"))
+                        .Text(LOCTEXT("Header", "MAXs Education DLSS 5 For UE5"))
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
@@ -418,16 +433,6 @@ TSharedRef<SDockTab> FDLSS5ForUE5EditorModule::SpawnPluginTab(const FSpawnTabArg
                     .Text(LOCTEXT("ResetDefaults", "Reset Defaults"))
                     .ToolTipText(LOCTEXT("ResetDefaultsTip", "Restore all panel controls to factory defaults (including NR and watermark off) and save for this project."))
                     .OnClicked_Raw(this, &FDLSS5ForUE5EditorModule::ResetDefaults)
-                ]
-                + SHorizontalBox::Slot()
-                .AutoWidth()
-                .VAlign(VAlign_Center)
-                .Padding(12.0f, 0.0f)
-                [
-                    SNew(SButton)
-                    .Text(LOCTEXT("SafeMode", "Safe Mode"))
-                    .ToolTipText(LOCTEXT("SafeModeTip", "Disable Neural Rendering and all experimental scene-guide execution, then save the safe configuration."))
-                    .OnClicked_Raw(this, &FDLSS5ForUE5EditorModule::EnterSafeMode)
                 ]
             ]
             + SVerticalBox::Slot()
@@ -459,27 +464,6 @@ TSharedRef<SDockTab> FDLSS5ForUE5EditorModule::SpawnPluginTab(const FSpawnTabArg
                 ]
             ]
         ];
-}
-
-FReply FDLSS5ForUE5EditorModule::EnterSafeMode()
-{
-    if (UDLSS5NRSettings* Settings = GetMutableDefault<UDLSS5NRSettings>())
-    {
-        Settings->bEnableNeuralRendering = false;
-        Settings->bEnableSceneGuides = false;
-        Settings->bFeedSceneGuides = false;
-        Settings->bUseMotionVectors = false;
-        Settings->ApplyToCVars();
-        Settings->SaveUserSettings();
-        Settings->RefreshDiagnostics();
-    }
-
-    if (DetailsView.IsValid())
-    {
-        DetailsView->ForceRefresh();
-    }
-
-    return FReply::Handled();
 }
 
 FReply FDLSS5ForUE5EditorModule::ResetDefaults()

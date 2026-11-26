@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.3 - MAXs Education UE 5.8.4 fork
+
+- Name the plugin **MAXs Education DLSS 5 For UE5** and use the MAXs Education plugin-list icon; keep the compact D5 toolbar button.
+- Show per-control reset arrows only for non-default values, including the Passes slider. Remove the Safe Mode panel button.
+- Retain persistent settings, presets, UE-side structure/tone and three object-mask groups, reference-style watermark, high-resolution capture and classic MRQ 4K output.
+- See [fork validation and limits](docs/VALIDATION_UE584.md). The v0.6.1 entries below describe the upstream baseline.
+
 ## v0.6.1 - Neural Rendering Runtime and Editor/MRQ Improvements
 
 - Updated the bundled third-party Neural Rendering runtime used by the Editor Win64 validation packages to **310.9.16.0**.
