@@ -1,53 +1,25 @@
 # Usage
 
-## Recommended sequence
+Click **D5** in the main editor toolbar, or open **Tools > DLSS 5 for UE5**.
 
-Start with one pass and introduce experimental inputs gradually:
+1. Enable Neural Rendering and start with one pass.
+2. Adjust **Effect Strength**: 0 is the original UE image, 1 is full NR output. UE blends the final images directly.
+3. Enable **Compare Original / DLSS5** for an original-left / processed-right comparison. Move **Split Position** to inspect different parts of the image.
+4. Optionally enable the ON/OFF watermark. Turn comparison off for a full processed capture.
+5. Use UE High Resolution Screenshot or [MRQ 4K image sequence output](UE584_CAPTURE.md).
 
-```text
-1. Enable Neural Rendering
-2. Enable 3D Scene Guides
-3. Keep Feed Scene Guides OFF and verify stability
-4. Feed Scene Guides ON with Depth ON / Motion OFF
-5. Enable Motion Vectors
-6. Increase Pass Count only after 1-pass is stable
-```
+All panel changes save automatically for this project/user. **Reset Defaults** restores and saves every panel-owned setting, including hidden legacy parameters. It turns off NR, comparison, watermark and experimental guides, and restores one pass/full strength.
 
 ## Pass Count
 
-Pass Count can be set from 1 to 4. Passes are sequential:
+Pass Count ranges from 1 to 4. Each pass consumes the previous pass output. Each additional pass increases GPU cost. More passes are not automatically higher quality.
 
-```text
-UE color → NR Pass 1 → NR Pass 2 → NR Pass 3 → NR Pass 4 → output
-```
+## Advanced investigation
 
-Each additional pass consumes the previous pass output. GPU cost rises significantly and the visual result can become stronger or more temporal. More passes are not automatically higher quality.
+Style/preset/local tone/structure/mask hints and experimental Scene Guides/Advanced controls are hidden from the artist panel. Their existing config keys and [CVars](COMMANDS.md) remain available. Their presence does not guarantee the installed runtime honors every parameter or improves quality.
 
-## Scene Guides
-
-- **Enable 3D Scene Guides:** master experimental guide switch
-- **Feed Scene Guides Into NR:** allows generated guides to reach NGX
-- **Use DLSS Input Depth:** UE SceneDepth, which is also the host depth source used by DLSS
-- **Use DLSS-Compatible Motion Vectors:** dense guide built from UE depth, camera reprojection and available velocity data
-- **Automatic History Reset:** resets temporal state on camera cuts, viewport changes, first-frame transitions and major exposure changes
-
-## Live Diagnostics
-
-Healthy operation generally shows:
-
-```text
-Runtime READY | Core READY | Core params READY | Caller gate READY
-Initialized YES | Snippet YES | Feature <resolution>
-... successful increasing | 0 failed
-Last Result 0x00000001
-```
+The footer diagnostics, About, developer/social links and version row are omitted. Run `DLSS5.Status` in the UE console to inspect actual initialization, feature size and evaluation success/failure counters. A loaded DLL alone does not prove native inference.
 
 ## Safe Mode
 
-If a previous experimental state becomes unstable, press **Safe Mode** or execute:
-
-```text
-DLSS5.SafeMode
-```
-
-This disables Neural Rendering and experimental guide execution.
+**Safe Mode** disables NR and experimental guide execution and saves those choices. The console command `DLSS5.SafeMode` is session-only; use `DLSS5.SaveSettings` to persist console changes.

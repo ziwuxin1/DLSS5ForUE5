@@ -127,7 +127,7 @@ void FDLSS5NRViewExtension::SubscribeToPostProcessingPass(
         return;
     }
 
-    if (DLSS5NR::GetEnable() == 0)
+    if (DLSS5NR::GetEnable() == 0 || DLSS5NR::GetBlend() <= 0.0f)
     {
         // If NR is disabled for one or more frames, do not reuse stale history when it comes back.
         HistoryByView.Reset();
@@ -177,7 +177,7 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
         }
         return Color;
     };
-    if (DLSS5NR::GetEnable() == 0 || !bSupportedView) return FinishOutput(SceneColor);
+    if (DLSS5NR::GetEnable() == 0 || DLSS5NR::GetBlend() <= 0.0f || !bSupportedView) return FinishOutput(SceneColor);
 
 #if !DLSS5NR_WITH_D3D12
     return FinishOutput(SceneColor);
@@ -555,7 +555,8 @@ FScreenPassTexture FDLSS5NRViewExtension::AfterTonemap_RenderThread(
     // performs its own transmittance-to-opacity conversion after this pass.
     const bool bHighlight = DLSS5NR::GetHighlightPreserve() != 0 && DLSS5NR::GetHighlightEnd() > DLSS5NR::GetHighlightStart();
     FinalNROutput = AddDLSS5NRHighlightPass(GraphBuilder, View, SceneColor.Texture, FinalNROutput,
-            ColorRect, DLSS5NR::GetHighlightStart(), DLSS5NR::GetHighlightEnd(), bHighlight, true);
+            ColorRect, DLSS5NR::GetHighlightStart(), DLSS5NR::GetHighlightEnd(), bHighlight, true,
+            DLSS5NR::GetBlend(), DLSS5NR::GetCompare() != 0, DLSS5NR::GetCompareSplit());
     const FScreenPassTexture NROutputScreen(FinalNROutput, ColorRect);
 
     return FinishOutput(NROutputScreen);

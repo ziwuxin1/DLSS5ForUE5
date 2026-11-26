@@ -45,6 +45,9 @@ UDLSS5NRSettings::UDLSS5NRSettings()
 
 void UDLSS5NRSettings::LoadFromCVars()
 {
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Blend"))) EffectStrength = V->GetFloat();
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Compare"))) bCompare = V->GetInt() != 0;
+    if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Compare.Split"))) SplitPosition = V->GetFloat();
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Watermark"))) bShowWatermark = V->GetInt() != 0;
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Watermark.Corner"))) WatermarkCorner = V->GetInt();
     if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.Watermark.Scale"))) WatermarkScale = V->GetFloat();
@@ -73,6 +76,9 @@ void UDLSS5NRSettings::LoadFromCVars()
 void UDLSS5NRSettings::ApplyToCVars(bool bStartup) const
 {
     const EConsoleVariableFlags Priority = bStartup ? ECVF_SetByProjectSetting : ECVF_SetByConsole;
+    SetFloatCVar(TEXT("r.DLSS5.Blend"), FMath::Clamp(EffectStrength, 0.0f, 1.0f), Priority);
+    SetIntCVar(TEXT("r.DLSS5.Compare"), bCompare ? 1 : 0, Priority);
+    SetFloatCVar(TEXT("r.DLSS5.Compare.Split"), FMath::Clamp(SplitPosition, 0.0f, 1.0f), Priority);
     SetIntCVar(TEXT("r.DLSS5.Watermark"), bShowWatermark ? 1 : 0, Priority);
     SetIntCVar(TEXT("r.DLSS5.Watermark.Corner"), FMath::Clamp(WatermarkCorner, 0, 3), Priority);
     SetFloatCVar(TEXT("r.DLSS5.Watermark.Scale"), FMath::Clamp(WatermarkScale, 0.5f, 4.0f), Priority);
@@ -96,6 +102,27 @@ void UDLSS5NRSettings::ApplyToCVars(bool bStartup) const
     SetFloatCVar(TEXT("r.DLSS5.MVecScaleY"), MotionScaleYMultiplier, Priority);
     SetFloatCVar(TEXT("r.DLSS5.ExposureResetRatio"), ExposureResetRatio, Priority);
     SetIntCVar(TEXT("r.DLSS5.Debug"), bVerboseDiagnostics ? 1 : 0, Priority);
+}
+
+void UDLSS5NRSettings::ResetToDefaults()
+{
+    // Only the controls owned by this panel; do not touch other plugins or project settings.
+    const TCHAR* Names[] = { TEXT("Enable"), TEXT("Style"), TEXT("Preset"), TEXT("PassCount"),
+        TEXT("Intensity"), TEXT("LocalTone"), TEXT("LocalStructure"), TEXT("SkinStructure"),
+        TEXT("AutoMask"), TEXT("UICorrection"), TEXT("EnableSceneGuides"), TEXT("FeedSceneGuides"),
+        TEXT("UseDepth"), TEXT("UseMotionVectors"), TEXT("AutoResetHistory"), TEXT("DepthInverted"),
+        TEXT("MVecScaleX"), TEXT("MVecScaleY"), TEXT("ExposureResetRatio"), TEXT("Debug"),
+        TEXT("Watermark"), TEXT("Watermark.Corner"), TEXT("Watermark.Scale"),
+        TEXT("Blend"), TEXT("Compare"), TEXT("Compare.Split") };
+    for (const TCHAR* Name : Names)
+    {
+        if (IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(
+            *FString::Printf(TEXT("r.DLSS5.%s"), Name)))
+        {
+            Variable->Set(*Variable->GetDefaultValue(), ECVF_SetByConsole);
+        }
+    }
+    LoadFromCVars();
 }
 
 void UDLSS5NRSettings::LoadUserSettings()

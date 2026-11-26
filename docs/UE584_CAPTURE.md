@@ -4,7 +4,7 @@ This fork extends the v0.6.1 source baseline with a GPU watermark and an explici
 
 ## High Resolution Screenshot
 
-1. Open **Tools > DLSS 5 for UE5** and enable Neural Rendering.
+1. Click **D5** in the main editor toolbar (or **Tools > DLSS 5 for UE5**) and enable Neural Rendering.
 2. Under **Capture**, optionally enable **Show DLSS5 ON / OFF Watermark**.
 3. Use UE's normal **High Resolution Screenshot** viewport tool, or run `HighResShot 3840x2160` in the viewport console.
 
@@ -39,6 +39,12 @@ Use distinct output folders for ON/OFF comparisons. `{dlss5}` is also available 
 The repository includes `DLSS5.GPU.Watermark4K`, `DLSS5.MRQ.SettingLifecycle`, and the existing runtime/guide tests. Build success, test status and native evaluation evidence are separate; consult the [UE 5.8.4 validation report](VALIDATION_UE584.md) for the exact locally tested configuration and any limitations.
 
 ## Automatic settings persistence
+
+The compact panel exposes NR enable, **Effect Strength**, Pass Count, **Before / After**, and watermark controls. Effect Strength mixes the original UE image with the final NR output: `0` bypasses NR, `1` uses the full result. This is a UE GPU composite, independent of the runtime's opaque Intensity hint. Comparison shows original on the left and processed on the right; Split Position moves the boundary. Both controls also affect HighResShot and MRQ. Turn comparison off before exporting a full processed frame. MRQ uses these project settings unless its Console Variables setting explicitly overrides them.
+
+**Reset Defaults** restores and saves all panel-owned values, including hidden legacy settings. NR, comparison, watermark and experimental guides return to off; strength returns to 1 and pass count to 1. It does not change the scene or settings owned by other plugins.
+
+Opaque style/preset/local-tone/structure/mask hints and experimental Scene Guides/Advanced controls are hidden from the panel. Their existing CVars/config keys remain available for compatibility and investigation. The diagnostics/About/social/version footer is removed; use `DLSS5.Status` for diagnostics. Earlier documentation images show the upstream UI rather than this compact fork panel.
 
 Changes made in the plugin window, including the custom Pass Count slider, are automatically saved under the project's `Saved/Config/WindowsEditor/EditorPerProjectUserSettings.ini`. Shared `Config/DefaultEngine.ini` files do not need to be checked out in Perforce. The next editor launch restores these settings before rendering starts.
 

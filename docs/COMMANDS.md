@@ -53,6 +53,14 @@ r.DLSS5.PassCount 4
 
 ## Capture watermark (UE 5.8.4 fork)
 
+| Final-image CVar | Default | Meaning |
+| --- | --- | --- |
+| `r.DLSS5.Blend` | 1 | UE composite strength, 0 original / 1 full NR; zero bypasses evaluation. |
+| `r.DLSS5.Compare` | 0 | Original left / processed right, including captures. |
+| `r.DLSS5.Compare.Split` | 0.5 | Split fraction, 0 all processed / 1 all original. |
+
+These final-image controls work independently of opaque runtime hints such as `r.DLSS5.Intensity`. The compact editor panel hides those hints and experimental guide/debug controls; their CVars remain available. `Reset Defaults` restores all panel-owned controls and persists the result.
+
 | CVar | Default | Meaning |
 | --- | --- | --- |
 | `r.DLSS5.Watermark` | 0 | Burn per-sample native NR ON/OFF status into the image. |

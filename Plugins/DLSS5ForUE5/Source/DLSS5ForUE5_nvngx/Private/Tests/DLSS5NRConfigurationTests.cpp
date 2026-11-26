@@ -4,6 +4,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
 #include "Misc/Paths.h"
+#include "Misc/ConfigCacheIni.h"
 #include "HAL/FileManager.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -17,7 +18,7 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     const TCHAR* Names[]={TEXT("Enable"),TEXT("Style"),TEXT("Preset"),TEXT("PassCount"),TEXT("Intensity"),
         TEXT("LocalTone"),TEXT("LocalStructure"),TEXT("SkinStructure"),TEXT("AutoMask"),TEXT("UICorrection"),
         TEXT("EnableSceneGuides"),TEXT("FeedSceneGuides"),TEXT("UseDepth"),TEXT("UseMotionVectors"),
-        TEXT("AutoResetHistory"),TEXT("DepthInverted"),TEXT("MVecScaleX"),TEXT("MVecScaleY"),TEXT("ExposureResetRatio"),TEXT("Debug"),TEXT("Watermark"),TEXT("Watermark.Corner"),TEXT("Watermark.Scale")};
+        TEXT("AutoResetHistory"),TEXT("DepthInverted"),TEXT("MVecScaleX"),TEXT("MVecScaleY"),TEXT("ExposureResetRatio"),TEXT("Debug"),TEXT("Watermark"),TEXT("Watermark.Corner"),TEXT("Watermark.Scale"),TEXT("Blend"),TEXT("Compare"),TEXT("Compare.Split")};
     for(const TCHAR* Name:Names)
     {
         IConsoleVariable* V=IConsoleManager::Get().FindConsoleVariable(*FString::Printf(TEXT("r.DLSS5.%s"),Name));
@@ -31,6 +32,7 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
             Old.V->Set(*Old.Value,ECVF_SetByConsole);
             Old.V->SetFlags(EConsoleVariableFlags((Old.V->GetFlags() & ~ECVF_SetByMask) | Old.Priority));
         }
+        GetMutableDefault<UDLSS5NRSettings>()->LoadFromCVars();
     };
     IConsoleVariable* Enable=Saved[0].V;
     Enable->Set(1,ECVF_SetByConsole);
@@ -50,7 +52,11 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     TestTrue(TEXT("Watermark stays enabled independently of NR"), Settings->bShowWatermark);
     TestEqual(TEXT("Watermark position survives UI/CVar sync"), Settings->WatermarkCorner, 2);
     TestEqual(TEXT("Watermark scale survives UI/CVar sync"), Settings->WatermarkScale, 1.5f);
-    const FString Ini = FPaths::CreateTempFilename(*FPaths::ProjectSavedDir(), TEXT("DLSS5SettingsTest"), TEXT(".ini"));
+    const FString Ini = FConfigCacheIni::NormalizeConfigIniPath(FPaths::ConvertRelativePathToFull(
+        FPaths::CreateTempFilename(*FPaths::ProjectSavedDir(), TEXT("DLSS5SettingsTest"), TEXT(".ini"))));
+    Settings->EffectStrength = 0.35f;
+    Settings->bCompare = true;
+    Settings->SplitPosition = 0.7f;
     Settings->PassCount = 3;
     Settings->Intensity = 0.65f;
     Settings->Style = EDLSS5NRStyle::Cinematic;
@@ -61,6 +67,9 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     TestEqual(TEXT("Style survives disk reload"), Reloaded->Style, EDLSS5NRStyle::Cinematic);
     TestEqual(TEXT("Intensity survives disk reload"), Reloaded->Intensity, 0.65f);
     TestTrue(TEXT("Watermark survives disk reload"), Reloaded->bShowWatermark);
+    TestEqual(TEXT("Final-image strength survives disk reload"), Reloaded->EffectStrength, 0.35f);
+    TestTrue(TEXT("Comparison toggle survives disk reload"), Reloaded->bCompare);
+    TestEqual(TEXT("Comparison position survives disk reload"), Reloaded->SplitPosition, 0.7f);
     IConsoleVariable* Passes = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DLSS5.PassCount"));
     Passes->Set(4, ECVF_SetByConsole);
     Reloaded->ApplyToCVars(true);
@@ -68,6 +77,34 @@ bool FDLSS5NRConfigurationTest::RunTest(const FString&)
     Passes->SetFlags(EConsoleVariableFlags(Passes->GetFlags() & ~ECVF_SetByMask));
     Reloaded->ApplyToCVars(true);
     TestEqual(TEXT("Saved startup value replaces constructor default"), Passes->GetInt(), 3);
+    // SaveConfig above mutates the CDO: resetting from that CDO would retain user values.
+    // Exercise the actual reset against both visible controls and hidden legacy controls.
+    Reloaded->bEnableSceneGuides = true;
+    Reloaded->MotionScaleXMultiplier = 2.0f;
+    Reloaded->ApplyToCVars();
+    Reloaded->ResetToDefaults();
+    TestFalse(TEXT("Reset disables NR"), Reloaded->bEnableNeuralRendering);
+    TestFalse(TEXT("Reset disables experimental guides"), Reloaded->bEnableSceneGuides);
+    TestEqual(TEXT("Reset restores hidden motion scale"), Reloaded->MotionScaleXMultiplier, 1.0f);
+    TestEqual(TEXT("Reset uses factory pass count, not saved CDO"), Reloaded->PassCount, 1);
+    TestEqual(TEXT("Reset restores full effect strength"), Reloaded->EffectStrength, 1.0f);
+    TestFalse(TEXT("Reset disables comparison"), Reloaded->bCompare);
+    TestFalse(TEXT("Reset disables watermark"), Reloaded->bShowWatermark);
+    // UE 5.8 marks loose INI files opened by LoadConfig as NoSave. Unlike the real
+    // EditorPerProjectUserSettings hierarchy, this standalone test file must be
+    // unloaded before SaveConfig creates a writable temporary branch again.
+    GConfig->UnloadFile(Ini);
+    Reloaded->SaveConfig(CPF_Config, *Ini);
+    FConfigFile DiskConfig;
+    DiskConfig.Read(Ini);
+    int32 DiskPasses = -1;
+    DiskConfig.GetInt(TEXT("/Script/DLSS5ForUE5_nvngx.DLSS5NRSettings"), TEXT("PassCount"), DiskPasses);
+    TestEqual(TEXT("Reset writes factory pass count to disk"), DiskPasses, 1);
+    GConfig->UnloadFile(Ini);
+    Settings->LoadConfig(Settings->GetClass(), *Ini);
+    TestFalse(TEXT("Reset remains disabled after disk reload"), Settings->bEnableNeuralRendering);
+    TestEqual(TEXT("Reset pass count persists"), Settings->PassCount, 1);
+    TestEqual(TEXT("Reset strength persists"), Settings->EffectStrength, 1.0f);
     IFileManager::Get().Delete(*Ini);
     using DLSS5NRRecovery::IsRecoverable;
     TestTrue(TEXT("Recent dead NR-active process triggers recovery"),IsRecoverable(true,false,0.1));

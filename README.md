@@ -11,7 +11,7 @@
 
 **Experimental DLSS 5 Neural Rendering integration for Unreal Engine 5.5-5.8**
 
-DLSS5ForUE5 is an unofficial Unreal Engine plugin that integrates NVIDIA NGX Neural Rendering into the UE editor on D3D12. It provides artist-facing controls, UE scene guides, temporal data, live diagnostics, Safe Mode, and optional 1-4 sequential Neural Rendering passes.
+DLSS5ForUE5 is an unofficial Unreal Engine plugin that integrates NVIDIA NGX Neural Rendering into the UE editor on D3D12. It provides artist-facing controls, UE scene guides, temporal data, console diagnostics, Safe Mode, and optional 1-4 sequential Neural Rendering passes.
 
 > **Unofficial community project.** DLSS5ForUE5 is not affiliated with, sponsored by, or endorsed by NVIDIA Corporation or Epic Games, Inc.
 
@@ -103,17 +103,15 @@ See [v0.6.1 release notes](RELEASE_NOTES_v0.6.1.md) and [contributor credits](CO
 
 ## Features
 
-- Dedicated **Tools > DLSS 5 for UE5** window
-- Natural and Cinematic styles
-- Neural Rendering preset control
-- Intensity, Local Tone, Local Structure, and Skin Structure controls
-- Automatic Mask and UI Correction controls
-- UE Scene Depth guide
-- Dense DLSS-compatible motion-vector guide
+- **D5** toolbar button and **Tools > DLSS 5 for UE5** window
+- UE final-image **Effect Strength** blend and original/processed split comparison
+- Automatic per-project/user settings persistence and one-click **Reset Defaults**
+- Optional ON/OFF watermark in High Resolution Screenshots and 4K MRQ PNG/EXR sequences
+- Legacy runtime hints and experimental depth/motion guides remain available through CVars, hidden from the compact panel
 - Jitter, pre-exposure, camera-cut, and history-reset tracking
 - Automatic history reset
 - **1-4 sequential Neural Rendering passes**
-- Live diagnostics for runtime, NGX, guides, subrects, temporal state, and frame counters
+- Console diagnostics for runtime, NGX, guides, subrects, temporal state, and frame counters
 - Safe Mode recovery
 - Console commands under `DLSS5.*` / `r.DLSS5.*`
 
@@ -125,7 +123,7 @@ More passes significantly increase GPU cost and are not automatically better. St
 
 ## Scene Guides
 
-The plugin can feed UE scene depth and generated dense motion vectors into Neural Rendering. Scene guides were found to improve temporal stability and reduce visible flicker in tested scenes.
+The backend can feed UE scene depth and generated dense motion vectors into Neural Rendering. The compact fork UI hides these experimental controls. The UE 5.8.4 capture acceptance uses the color-only path; a quality improvement from guides is not established by those checks.
 
 Motion-vector handling remains experimental because some UE render-hook states expose the native object-velocity source as a `1x1` dummy texture. The plugin reconstructs camera/background motion from depth when necessary.
 

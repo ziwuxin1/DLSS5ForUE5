@@ -155,6 +155,9 @@ public:
         SHADER_PARAMETER(float, PreserveEnd)
         SHADER_PARAMETER(uint32, EnableRecovery)
         SHADER_PARAMETER(uint32, PreserveAlpha)
+        SHADER_PARAMETER(float, EffectBlend)
+        SHADER_PARAMETER(uint32, CompareEnabled)
+        SHADER_PARAMETER(float, CompareSplit)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RecoveredColor)
     END_SHADER_PARAMETER_STRUCT()
     static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& P)
@@ -164,15 +167,16 @@ IMPLEMENT_GLOBAL_SHADER(FDLSS5NRHighlightCS,"/DLSS5NR/Private/DLSS5NRHighlightPr
 
 FRDGTextureRef AddDLSS5NRHighlightPass(FRDGBuilder& GraphBuilder,const FSceneView& View,
     FRDGTextureRef Original,FRDGTextureRef Neural,const FIntRect& Rect,
-    float Start,float End,bool bEnable,bool bAlpha)
+    float Start,float End,bool bEnable,bool bAlpha,float Blend,bool bCompare,float Split)
 {
     FRDGTextureRef Output=GraphBuilder.CreateTexture(Neural->Desc,TEXT("DLSS5NR.HighlightRecovery"));
     auto* P=GraphBuilder.AllocParameters<FDLSS5NRHighlightCS::FParameters>();
     P->OriginalColor=Original;P->NeuralColor=Neural;P->RectMin=Rect.Min;P->RectSize=Rect.Size();
     P->PreserveStart=Start;P->PreserveEnd=End;P->EnableRecovery=bEnable;P->PreserveAlpha=bAlpha;
+    P->EffectBlend=FMath::Clamp(Blend,0.0f,1.0f);P->CompareEnabled=bCompare;P->CompareSplit=FMath::Clamp(Split,0.0f,1.0f);
     P->RecoveredColor=GraphBuilder.CreateUAV(Output);
     TShaderMapRef<FDLSS5NRHighlightCS> Shader(GetGlobalShaderMap(View.GetFeatureLevel()));
-    FComputeShaderUtils::AddPass(GraphBuilder,RDG_EVENT_NAME("DLSS5NR Optional Highlight/Alpha Recovery"),
+    FComputeShaderUtils::AddPass(GraphBuilder,RDG_EVENT_NAME("DLSS5NR Blend / Compare / Alpha"),
         Shader,P,FComputeShaderUtils::GetGroupCount(Rect.Size(),FIntPoint(8,8)));
     return Output;
 }

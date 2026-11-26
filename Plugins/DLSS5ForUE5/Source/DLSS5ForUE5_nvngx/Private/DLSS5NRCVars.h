@@ -4,6 +4,9 @@
 
 namespace DLSS5NR
 {
+    float GetBlend();
+    int32 GetCompare();
+    float GetCompareSplit();
     int32 GetHighlightPreserve();
     float GetHighlightStart();
     float GetHighlightEnd();

@@ -7,6 +7,16 @@ static TAutoConsoleVariable<int32> CVarDLSS5NREnable(
     TEXT("Enable experimental DLSS Neural Rendering post-pass. 0=Off 1=On"),
     ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<float> CVarBlend(
+    TEXT("r.DLSS5.Blend"), 1.0f,
+    TEXT("UE final-image blend: 0=original, 1=full NR. Independent of runtime intensity hints."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<int32> CVarCompare(
+    TEXT("r.DLSS5.Compare"), 0,
+    TEXT("Compare original (left) and processed (right). Also applies to screenshots and MRQ."), ECVF_RenderThreadSafe);
+static TAutoConsoleVariable<float> CVarCompareSplit(
+    TEXT("r.DLSS5.Compare.Split"), 0.5f,
+    TEXT("Normalized comparison split position. 0=all processed, 1=all original."), ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarWatermark(
     TEXT("r.DLSS5.Watermark"), 0,
     TEXT("Burn DLSS5 ON/OFF into the rendered image. ON means at least one native NR pass succeeded for this view/sample."), ECVF_RenderThreadSafe);
@@ -106,6 +116,9 @@ static TAutoConsoleVariable<float> CVarHighlightEnd(TEXT("r.DLSS5.HighlightPrese
 
 namespace DLSS5NR
 {
+    float GetBlend() { return FMath::Clamp(CVarBlend.GetValueOnRenderThread(), 0.0f, 1.0f); }
+    int32 GetCompare() { return CVarCompare.GetValueOnRenderThread(); }
+    float GetCompareSplit() { return FMath::Clamp(CVarCompareSplit.GetValueOnRenderThread(), 0.0f, 1.0f); }
     int32 GetHighlightPreserve() { return CVarHighlight.GetValueOnRenderThread(); }
     float GetHighlightStart() { return CVarHighlightStart.GetValueOnRenderThread(); }
     float GetHighlightEnd() { return CVarHighlightEnd.GetValueOnRenderThread(); }

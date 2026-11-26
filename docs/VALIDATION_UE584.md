@@ -45,3 +45,18 @@ This validation does not establish production-scene quality, long-render stabili
 The initial source-based validation did not test the final ZIP's added `EngineVersion` field. That field used the hotfix version `5.8.4`, while PluginManager compares against `FEngineVersion::CompatibleWith()` (`5.8.0` for this Epic build). This caused a prompt even though both module BuildIds were 55116800. The packaging script now derives the compatible baseline from the engine build and rejects mismatched module manifests. No rendering binaries changed in this correction.
 
 The corrected ZIP was extracted into a fresh project and launched with UE 5.8.4. The runtime settings class and MRQ setting class loaded, the process exited with code 0, and the log contained no plugin engine-version warning. This was a package-loading smoke test without the NVIDIA runtime; it does not add new native inference claims.
+
+## r3 compact controls and production-scene acceptance
+
+The earlier basic-mesh results above are historical. The r3 acceptance additionally used an isolated project reading the production Tuxi map, with its original map/content left unsaved. Existing local NVIDIA runtime was retained during the plugin update.
+
+- Win64 Development Editor build succeeded on UE 5.8.4.
+- All six `DLSS5` automation tests passed. The new `CompositeControls4K` test reads back actual GPU pixels for strength 0/0.5/1 and split 0/0.5/1, with a non-zero 4K view origin and original alpha retained. Configuration tests check reset values on disk as well as legacy hidden controls.
+- Four real-scene 3840x2160 HighResShot PNGs: NR off, full effect, 50% effect, and original-left / processed-right comparison. These screenshots used a 1920x1080 NR feature before UE's final 4K output; they do not prove full-resolution NR inference for HighResShot.
+- MRQ produced three PNG and three EXR frames at 3840x2160 with comparison active. Its native NGX feature was created at 3840x2160. All six files were decoded and checked for dimensions, finite pixel values, white label text, green ON glyphs and opaque glyph alpha.
+- Native counters: 15/15 successes after screenshots, 61/61 after MRQ, zero failures. These totals include viewport and warm-up evaluations, not 61 delivered frames. Configuration remained DX12/SM6, RTX 5090, driver 621.24, one pass, guides off.
+- The D5 button opened the compact panel in the editor. Hidden controls and the entire footer were absent. Clicking Reset Defaults changed strength 0.35 to 1, passes 3 to 1, comparison/watermark to off, and hidden motion scale 2 to 1; the saved user INI contained those defaults.
+
+The final-image blend/comparison code is independently implemented. No implementation from the proprietary Visual Enhancer license was copied. Color-guided restoration, preset exchange, and automatic multi-variant MRQ queues remain research proposals, not shipped features. These short checks do not establish long-render stability, all scenes, linear/OCIO EXR, tiled output, Movie Render Graph, path tracing, packaged NR or other engine versions.
+
+After a clean editor shutdown and new process launch, ten control CVars (including hidden motion scale) matched the reset values. The rebuilt toolbar was visually checked with P4 loaded: D5 appeared immediately to its right and opened the compact panel. No engine-version prompt occurred.

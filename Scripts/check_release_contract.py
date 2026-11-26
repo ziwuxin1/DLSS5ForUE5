@@ -45,8 +45,8 @@ notes = read(ROOT / "RELEASE_NOTES_v0.6.1.md")
 commands = read(ROOT / "docs" / "COMMANDS.md")
 changelog = read(ROOT / "CHANGELOG.md")
 third_party = read(ROOT / "THIRD_PARTY_NOTICES.md")
-editor = read(PLUGIN / "Source/DLSS5ForUE5Editor/Private/DLSS5ForUE5EditorModule.cpp")
-check("2026-10-27" in editor, "Maintainer-verified Editor build date missing.")
+# The fork intentionally omits version/build and attribution panels from the editor UI.
+# Release identity and upstream notices remain in the descriptor and documentation.
 check("# DLSS5ForUE5" in readme and "v0.6.1" in readme, "README release identity missing.")
 check(notes.startswith("# DLSS5ForUE5 v0.6.1"), "Release notes title/version mismatch.")
 check("## v0.6.1" in changelog, "Changelog missing current release.")

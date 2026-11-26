@@ -34,6 +34,8 @@ public:
     void LoadUserSettings();
     void SaveUserSettings();
     void LoadFromCVars();
+    // Restore constructor defaults, not the mutable CDO or saved project values.
+    void ResetToDefaults();
     void RefreshDiagnostics();
 
     // ---------------- General ----------------
@@ -49,6 +51,16 @@ public:
     // Edited by the dedicated Slate slider in the DLSS 5 window rather than the generic DetailsView.
     UPROPERTY(Config)
     int32 PassCount = 1;
+
+    // UE-owned final-image controls: independent of opaque NGX parameter hints.
+    UPROPERTY(EditAnywhere, Config, Category = "General", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", DisplayName = "Effect Strength", ToolTip = "0 = original UE image, 1 = full NR output. Blends the final images in UE; applies to screenshots and MRQ too."))
+    float EffectStrength = 1.0f;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Comparison", meta = (DisplayName = "Compare Original / DLSS5", ToolTip = "Left: original UE image. Right: processed image. Comparison is included in screenshots and MRQ; turn off for a full processed render."))
+    bool bCompare = false;
+
+    UPROPERTY(EditAnywhere, Config, Category = "Comparison", meta = (EditCondition = "bCompare", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", DisplayName = "Split Position", ToolTip = "0 = all processed, 0.5 = equal halves, 1 = all original."))
+    float SplitPosition = 0.5f;
 
     // Composited into scene color, so screenshots and MRQ image sequences retain it.
     UPROPERTY(EditAnywhere, Config, Category = "Capture", meta = (DisplayName = "Show DLSS5 ON / OFF Watermark"))
@@ -112,9 +124,7 @@ public:
     bool bVerboseDiagnostics = true;
 
     // ---------------- Live Diagnostics ----------------
-    // Intentionally not UPROPERTY fields. The dedicated editor window renders these
-    // as a separate live text panel so diagnostics can update without rebuilding the
-    // DetailsView and interrupting sliders, combo boxes, or mouse capture.
+    // Legacy diagnostic strings retained for internal callers; omitted from the artist panel.
     FString DiagnosticRuntime;
     FString DiagnosticNGX;
     FString DiagnosticGuides;
